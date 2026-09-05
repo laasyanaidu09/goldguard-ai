@@ -1,0 +1,3 @@
+invoice_id,jeweller,invoice_number,purchase_date,jewellery_name,category,purity,gross_weight_grams,net_gold_weight_grams,gold_rate,making_charges,wastage,taxes,total_purchase_price,currency
+inv_traditional_necklace,Golden Heritage Jewellers,GH-2023-9941,2023-06-12,Gold Traditional Necklace,necklace,22K,38.4,36.8,60.15,420.0,3.5,180.0,2813.52,USD
+inv_contemporary_earrings,Modern Carats Co.,MC-8812,2024-11-03,Elegant Huggie Hoops,earrings,18K,4.2,3.15,67.8,95.0,0.0,25.0,333.57,USD

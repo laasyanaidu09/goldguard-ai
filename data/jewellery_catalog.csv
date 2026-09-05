@@ -1,0 +1,31 @@
+item_id,name,category,style,purity,weight_range,min_weight,max_weight,occasion,design_features,colour,image_reference
+CATALOG_100,Traditional Bridal Choker,necklace,traditional,22K,35g - 45g,35,45,bridal,"filigree, intricate, gold beads, heavy design",yellow,catalog_necklace_traditional.jpg
+CATALOG_101,Antique Temple Haram Necklace,necklace,antique,22K,50g - 70g,50,70,festive,"deity motif, rubies, emeralds, matte gold",yellow,catalog_necklace_antique.jpg
+CATALOG_102,Contemporary Minimalist Pendant Necklace,necklace,minimalist,18K,8g - 12g,8,12,everyday,"thin chain, geometric pendant, clean lines",rose,catalog_necklace_minimalist.jpg
+CATALOG_103,Fusion Layered Gold Necklace,necklace,fusion,22K,18g - 25g,18,25,party,"double chain, textured discs, modern chic",two-tone,catalog_necklace_fusion.jpg
+CATALOG_104,Classic Gold Wedding Band,ring,minimalist,18K,3g - 5g,3,5,everyday,"polished band, half-round profile, simple",yellow,catalog_ring_minimalist.jpg
+CATALOG_105,Contemporary Stackable Ring,ring,contemporary,22K,2g - 4g,2,4,workwear,"geometric cutouts, thin band, matte finish",rose,catalog_ring_contemporary.jpg
+CATALOG_106,Intricate Traditional Cocktail Ring,ring,traditional,22K,8g - 12g,8,12,party,"floral motif, adjustable size, detailed embossing",yellow,catalog_ring_traditional.jpg
+CATALOG_107,Lightweight Contemporary Chain Bracelet,bracelet,contemporary,18K,6g - 9g,6,9,workwear,"paperclip link, toggle clasp, charms",yellow,catalog_bracelet_contemporary.jpg
+CATALOG_108,Minimalist Tennis Bracelet (Solid Gold),bracelet,minimalist,18K,10g - 14g,10,14,everyday,"square links, hidden clasp, sleek profile",two-tone,catalog_bracelet_minimalist.jpg
+CATALOG_109,Antique Textured Cuff Bracelet,bracelet,antique,22K,20g - 28g,20,28,bridal,"embossed filigree, hinged clasp, vintage finish",yellow,catalog_bracelet_antique.jpg
+CATALOG_110,Traditional Jhumka Earrings,earrings,traditional,22K,12g - 18g,12,18,festive,"bell shape, hanging beads, floral stud",yellow,catalog_earrings_traditional.jpg
+CATALOG_111,Minimalist Gold Huggie Hoops,earrings,minimalist,18K,2g - 4g,2,4,everyday,"click closure, small hoop, polished gold",yellow,catalog_earrings_minimalist.jpg
+CATALOG_112,Contemporary Geo Drop Earrings,earrings,contemporary,18K,6g - 10g,6,10,party,"dangling triangles, brushed metal finish",rose,catalog_earrings_contemporary.jpg
+CATALOG_113,Traditional Solid Bangles (Set of 2),bangle,traditional,22K,24g - 30g,24,30,bridal,"carved leaf pattern, high-polish, rigid",yellow,catalog_bangle_traditional.jpg
+CATALOG_114,Contemporary Lightweight Slip-on Bangle,bangle,contemporary,18K,8g - 12g,8,12,workwear,"slender band, polished finish, daily wear",rose,catalog_bangle_contemporary.jpg
+CATALOG_115,Antique Kada Bangle,bangle,antique,22K,18g - 24g,18,24,festive,"screw-open clasp, elephant-head terminals, matte gold",yellow,catalog_bangle_antique.jpg
+CATALOG_116,Minimalist Solitaire Pendant,pendant,minimalist,22K,1.5g - 3g,1.5,3,everyday,"bezel setting, small bail, loop-thru",rose,catalog_pendant_minimalist.jpg
+CATALOG_117,Traditional Lakshmi Pendant,pendant,traditional,22K,6g - 10g,6,10,festive,"deity carving, coin shape, textured border",yellow,catalog_pendant_traditional.jpg
+CATALOG_118,Antique Temple Haram Necklace II,necklace,antique,22K,45g - 77g,45,77,festive,"deity motif, rubies, emeralds, matte gold, ii",yellow,catalog_necklace_antique_0.jpg
+CATALOG_119,Intricate Traditional Cocktail Ring Elegant,ring,traditional,22K,7g - 13g,7,13,party,"floral motif, adjustable size, detailed embossing, elegant",yellow,catalog_ring_traditional_1.jpg
+CATALOG_120,Traditional Lakshmi Pendant Elegant,pendant,traditional,22K,5g - 11g,5,11,festive,"deity carving, coin shape, textured border, elegant",two-tone,catalog_pendant_traditional_2.jpg
+CATALOG_121,Lightweight Contemporary Chain Bracelet Daily,bracelet,contemporary,18K,5g - 9g,5,9,workwear,"paperclip link, toggle clasp, charms, daily",white,catalog_bracelet_contemporary_3.jpg
+CATALOG_122,Traditional Bridal Choker Elegant,necklace,traditional,22K,31g - 49g,31,49,bridal,"filigree, intricate, gold beads, heavy design, elegant",two-tone,catalog_necklace_traditional_4.jpg
+CATALOG_123,Traditional Jhumka Earrings Lux,earrings,traditional,22K,10g - 19g,10,19,festive,"bell shape, hanging beads, floral stud, lux",rose,catalog_earrings_traditional_5.jpg
+CATALOG_124,Intricate Traditional Cocktail Ring Lux,ring,traditional,22K,7g - 13g,7,13,party,"floral motif, adjustable size, detailed embossing, lux",yellow,catalog_ring_traditional_6.jpg
+CATALOG_125,Contemporary Minimalist Pendant Necklace Daily,necklace,minimalist,18K,7g - 13g,7,13,everyday,"thin chain, geometric pendant, clean lines, daily",yellow,catalog_necklace_minimalist_7.jpg
+CATALOG_126,Minimalist Gold Huggie Hoops Lux,earrings,minimalist,18K,1g - 4g,1,4,everyday,"click closure, small hoop, polished gold, lux",white,catalog_earrings_minimalist_8.jpg
+CATALOG_127,Antique Temple Haram Necklace Daily,necklace,antique,22K,45g - 77g,45,77,festive,"deity motif, rubies, emeralds, matte gold, daily",yellow,catalog_necklace_antique_9.jpg
+CATALOG_128,Contemporary Geo Drop Earrings II,earrings,contemporary,18K,5g - 11g,5,11,party,"dangling triangles, brushed metal finish, ii",white,catalog_earrings_contemporary_10.jpg
+CATALOG_129,Minimalist Gold Huggie Hoops Elegant,earrings,minimalist,18K,1g - 4g,1,4,everyday,"click closure, small hoop, polished gold, elegant",yellow,catalog_earrings_minimalist_11.jpg
