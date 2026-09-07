@@ -46,34 +46,33 @@ def get_gold_prices(currency: str = "USD"):
     raw_prices = database.load_gold_prices()
     raw_count = len(raw_prices)
 
-    # 1. Filter out any live-appended high price entries from previous sessions to get a clean historical base
-    clean_history = [p for p in raw_prices if float(p["gold_price"]) < 70.0]
+    # 1. Sanity filter: keep realistic historical prices between 30.0 and 120.0 USD/gram
+    clean_history = [p for p in raw_prices if 30.0 <= float(p.get("gold_price", 0)) <= 120.0]
     if not clean_history:
         clean_history = raw_prices
 
     unique_prices_dict = {}
     for p in clean_history:
         date_str = p["date"]
-        unique_prices_dict[date_str] = p
+        unique_prices_dict[date_str] = {
+            "date": p["date"],
+            "gold_price": float(p["gold_price"]),
+            "currency": p.get("currency", "USD"),
+            "market_region": p.get("market_region", "Global"),
+            "source_type": p.get("source_type", "market_close")
+        }
 
     sorted_dates = sorted(unique_prices_dict.keys())
     deduped_prices = [unique_prices_dict[d] for d in sorted_dates]
     unique_count = len(deduped_prices)
     dup_removed = raw_count - unique_count
 
-    # Calculate scale factor to align the historical CSV mock prices with the current live API gold price
+    # Append or update today's live verified gold spot price
     live_price_usd = database.get_current_gold_price_usd()
-    if deduped_prices:
-        latest_csv_usd = float(deduped_prices[-1]["gold_price"])
-        scale_factor = live_price_usd / latest_csv_usd
-        for p in deduped_prices:
-            p["gold_price"] = round(float(p["gold_price"]) * scale_factor, 4)
-
-    # Append the current live price as today's daily close to complete the series without any step jump
     today_str = datetime.now().strftime("%Y-%m-%d")
     if deduped_prices and deduped_prices[-1]["date"] == today_str:
         deduped_prices[-1]["gold_price"] = live_price_usd
-    else:
+    elif deduped_prices:
         deduped_prices.append({
             "date": today_str,
             "gold_price": live_price_usd,

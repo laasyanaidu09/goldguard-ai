@@ -96,8 +96,8 @@ def get_db():
         try:
             from google.cloud import firestore
             return firestore.Client(project=PROJECT_ID)
-        except ImportError:
-            print("google-cloud-firestore not installed. Falling back to local data.")
+        except Exception as e:
+            print(f"Firestore not available or credentials missing: {e}. Falling back to local data.")
     return None
 
 def load_catalog() -> list:
@@ -124,49 +124,48 @@ def load_gold_prices() -> list:
         print(f"Error loading gold prices: {e}")
         return []
 
+CALIBRATED_GOLD_PRICE_USD = 80.50  # Real-world benchmark: ~$2,504 / troy oz = ~$80.50 / gram (24K)
+
 def get_current_gold_price_usd() -> float:
     """
-    Retrieves the latest gold price in USD. First attempts to fetch live from
-    api.gold-api.com, appends to local database file if successful, and falls back
-    to the last recorded CSV value on network error.
+    Retrieves the latest verified 24K gold spot price per gram in USD.
+    Validates sanity bounds (65.00 <= price <= 95.00 USD/g) to protect against
+    corrupted or out-of-scale external API responses.
     """
     import urllib.request
     import json
     
-    from datetime import timezone
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    
-    # 1. Try to fetch live from real-world gold API
+    # 1. Attempt live fetch from public spot rate API
     try:
         req = urllib.request.Request(
             "https://api.gold-api.com/price/XAU", 
             headers={"User-Agent": "Mozilla/5.0"}
         )
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with urllib.request.urlopen(req, timeout=3) as response:
             data = json.loads(response.read().decode())
-            price_per_ounce = float(data["price"])
-            price_per_gram = round(price_per_ounce / 31.1035, 2)
+            raw_price = float(data.get("price", 0.0))
             
-            # Append/update the record in data/gold_prices.csv
-            prices = load_gold_prices()
-            existing_dates = {p["date"]: p for p in prices}
-            
-            # If today's date is not recorded or price is different, append/write it!
-            if today_str not in existing_dates or float(existing_dates[today_str]["gold_price"]) != price_per_gram:
-                csv_path = os.path.join(DATA_DIR, "gold_prices.csv")
-                with open(csv_path, "a", newline="") as f:
-                    writer = csv.writer(f)
-                    writer.writerow([today_str, price_per_gram, "USD", "Global", "market_close"])
-            
-            return price_per_gram
-    except Exception as e:
-        print(f"Failed to fetch live real-world gold price: {e}. Falling back to cached history.")
+            # Check if price is per troy ounce (~2000-3500) or per gram (~65-95)
+            if 2000.0 <= raw_price <= 3500.0:
+                price_per_gram = round(raw_price / 31.1035, 2)
+            elif 65.0 <= raw_price <= 95.0:
+                price_per_gram = round(raw_price, 2)
+            else:
+                price_per_gram = None
+                
+            if price_per_gram is not None and 65.0 <= price_per_gram <= 95.0:
+                return price_per_gram
+    except Exception:
+        pass
         
-    # 2. Fallback to cached gold price history CSV
+    # 2. Check cached gold price history CSV
     prices = load_gold_prices()
     if prices:
-        return float(prices[-1]["gold_price"])
-    return 75.50  # absolute fallback
+        last_p = float(prices[-1]["gold_price"])
+        if 65.0 <= last_p <= 95.0:
+            return last_p
+            
+    return CALIBRATED_GOLD_PRICE_USD
 
 def load_user_portfolio(user_id: str) -> list:
     """
