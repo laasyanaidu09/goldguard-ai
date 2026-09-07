@@ -124,13 +124,13 @@ def load_gold_prices() -> list:
         print(f"Error loading gold prices: {e}")
         return []
 
-CALIBRATED_GOLD_PRICE_USD = 80.50  # Real-world benchmark: ~$2,504 / troy oz = ~$80.50 / gram (24K)
+CALIBRATED_GOLD_PRICE_USD = 141.72  # Retail 24K benchmark matching Joyalukkas: SGD 189.90 (24K), SGD 173.90 (22K), SGD 142.50 (18K)
 
 def get_current_gold_price_usd() -> float:
     """
-    Retrieves the latest verified 24K gold spot price per gram in USD.
-    Validates sanity bounds (65.00 <= price <= 95.00 USD/g) to protect against
-    corrupted or out-of-scale external API responses.
+    Retrieves the latest verified 24K retail gold rate per gram in USD.
+    Validates sanity bounds (110.00 <= price <= 180.00 USD/g) aligned with
+    official Singapore & international jeweller display board rates.
     """
     import urllib.request
     import json
@@ -145,15 +145,15 @@ def get_current_gold_price_usd() -> float:
             data = json.loads(response.read().decode())
             raw_price = float(data.get("price", 0.0))
             
-            # Check if price is per troy ounce (~2000-3500) or per gram (~65-95)
-            if 2000.0 <= raw_price <= 3500.0:
+            # Check if price is per troy ounce or per gram
+            if 3500.0 <= raw_price <= 6000.0:
                 price_per_gram = round(raw_price / 31.1035, 2)
-            elif 65.0 <= raw_price <= 95.0:
+            elif 110.0 <= raw_price <= 180.0:
                 price_per_gram = round(raw_price, 2)
             else:
                 price_per_gram = None
                 
-            if price_per_gram is not None and 65.0 <= price_per_gram <= 95.0:
+            if price_per_gram is not None and 110.0 <= price_per_gram <= 180.0:
                 return price_per_gram
     except Exception:
         pass
@@ -162,7 +162,7 @@ def get_current_gold_price_usd() -> float:
     prices = load_gold_prices()
     if prices:
         last_p = float(prices[-1]["gold_price"])
-        if 65.0 <= last_p <= 95.0:
+        if 110.0 <= last_p <= 180.0:
             return last_p
             
     return CALIBRATED_GOLD_PRICE_USD

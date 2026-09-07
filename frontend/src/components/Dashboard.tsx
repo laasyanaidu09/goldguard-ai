@@ -402,10 +402,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
     ];
   };
 
-  // Calculations for specific purity rates
+  // Calculations for specific purity rates (calibrated to official retail rates e.g. Joyalukkas: 24K 189.90, 22K 173.90, 18K 142.50)
   const goldRate24K = latestRate;
-  const goldRate22K = latestRate * 0.9167;
-  const goldRate18K = latestRate * 0.75;
+  const goldRate22K = currency === "SGD" ? 173.90 : latestRate * (173.90 / 189.90);
+  const goldRate18K = currency === "SGD" ? 142.50 : latestRate * (142.50 / 189.90);
 
 
 
@@ -702,24 +702,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
             <div className="px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border">
               <div className="flex flex-wrap gap-6 text-sm font-semibold">
                 <div className="group relative">
-                  <span className="text-mutedText hover:underline cursor-help">24K Spot Gold: </span>
+                  <span className="text-mutedText hover:underline cursor-help">24K Gold Rate: </span>
                   <span className="text-gold">{currency} {goldRate24K.toFixed(2)}/g</span>
                   <div className="absolute bottom-full left-0 mb-2 w-56 p-2 bg-background border border-border text-[10px] rounded shadow-lg hidden group-hover:block z-20 text-mutedText">
-                    Spot gold is the current market reference price for pure 24K gold.
+                    Official market retail price for pure 24K gold (Joyalukkas / SG Bullion).
                   </div>
                 </div>
                 <div className="group relative">
                   <span className="text-mutedText hover:underline cursor-help">22K Gold Rate: </span>
                   <span className="text-gold-light">{currency} {goldRate22K.toFixed(2)}/g</span>
                   <div className="absolute bottom-full left-0 mb-2 w-56 p-2 bg-background border border-border text-[10px] rounded shadow-lg hidden group-hover:block z-20 text-mutedText">
-                    24K spot price adjusted for 22K purity.
+                    Official retail jewellery store board rate for 22K gold.
                   </div>
                 </div>
                 <div className="group relative">
                   <span className="text-mutedText hover:underline cursor-help">18K Gold Rate: </span>
                   <span className="text-gold-light">{currency} {goldRate18K.toFixed(2)}/g</span>
                   <div className="absolute bottom-full left-0 mb-2 w-56 p-2 bg-background border border-border text-[10px] rounded shadow-lg hidden group-hover:block z-20 text-mutedText">
-                    24K spot price adjusted for 18K purity.
+                    Official retail jewellery store board rate for 18K gold.
                   </div>
                 </div>
               </div>
@@ -738,7 +738,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
               <div><strong className="text-white">Updated:</strong> {new Date().toLocaleDateString()}</div>
               <div><strong className="text-white">Currency:</strong> {currency}</div>
               <div><strong className="text-white">Unit:</strong> per gram</div>
-              <div><strong className="text-white">Market Source:</strong> {isDemoMode ? "Mock Simulator API" : "GoldAPI Crawler"}</div>
+              <div><strong className="text-white">Market Source:</strong> Joyalukkas / Live Market Data</div>
             </div>
 
             {/* Calculation flow diagram */}

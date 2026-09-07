@@ -3,37 +3,29 @@ import os
 import random
 from datetime import datetime, timedelta
 
-def generate_realistic_gold_prices():
+def generate_retail_gold_prices():
     start_date = datetime(2020, 1, 1)
     end_date = datetime(2026, 9, 7)
     current_date = start_date
 
-    # Real historical anchor points for gold price per gram in USD
-    # 2020-01: ~49.00
-    # 2020-08: ~65.00 (pandemic peak)
-    # 2021-06: ~58.00
-    # 2022-03: ~63.00
-    # 2022-11: ~53.00
-    # 2023-12: ~66.00
-    # 2024-04: ~74.00
-    # 2024-09: ~80.50
-    # 2026-09: ~80.50
+    # Current retail 24K benchmark: SGD 189.90 / 1.34 = 141.7164 USD
+    TARGET_CURRENT_USD = round(189.90 / 1.34, 2)  # 141.72 USD
+
     anchors = [
-        (datetime(2020, 1, 1), 48.87),
-        (datetime(2020, 8, 6), 66.23),
-        (datetime(2021, 6, 1), 58.10),
-        (datetime(2022, 3, 8), 65.50),
-        (datetime(2022, 10, 15), 54.20),
-        (datetime(2023, 4, 12), 64.50),
-        (datetime(2023, 10, 5), 58.50),
-        (datetime(2024, 1, 1), 66.20),
-        (datetime(2024, 5, 10), 75.80),
-        (datetime(2025, 1, 20), 78.40),
-        (datetime(2026, 8, 1), 80.20),
-        (datetime(2026, 9, 7), 80.50),
+        (datetime(2020, 1, 1), 58.20),
+        (datetime(2020, 8, 6), 78.50),
+        (datetime(2021, 6, 1), 72.00),
+        (datetime(2022, 3, 8), 82.50),
+        (datetime(2022, 10, 15), 75.00),
+        (datetime(2023, 4, 12), 89.00),
+        (datetime(2023, 10, 5), 84.50),
+        (datetime(2024, 1, 1), 96.00),
+        (datetime(2024, 5, 10), 112.00),
+        (datetime(2025, 1, 20), 125.00),
+        (datetime(2026, 8, 1), 138.50),
+        (datetime(2026, 9, 7), TARGET_CURRENT_USD),
     ]
 
-    # Precalculate interpolated target prices for each day
     daily_targets = {}
     for i in range(len(anchors) - 1):
         d1, p1 = anchors[i]
@@ -47,21 +39,18 @@ def generate_realistic_gold_prices():
 
     random.seed(42)
     records = []
-    price = 48.87
+    price = 58.20
 
     while current_date <= end_date:
-        if current_date.weekday() < 5:  # Monday - Friday
+        if current_date.weekday() < 5:
             date_str = current_date.strftime("%Y-%m-%d")
-            target = daily_targets.get(date_str, 80.50)
-            
-            # Pull towards anchor target + small daily noise
+            target = daily_targets.get(date_str, TARGET_CURRENT_USD)
             pull = (target - price) * 0.05
-            noise = random.normalvariate(0, 0.005) * price
+            noise = random.normalvariate(0, 0.004) * price
             price = round(price + pull + noise, 2)
             
-            # On the final day, ensure exact calibrated current spot price
             if current_date == end_date:
-                price = 80.50
+                price = TARGET_CURRENT_USD
 
             records.append({
                 "date": date_str,
@@ -81,4 +70,4 @@ def generate_realistic_gold_prices():
     print(f"Generated {len(records)} clean records. Final record: {records[-1]}")
 
 if __name__ == "__main__":
-    generate_realistic_gold_prices()
+    generate_retail_gold_prices()
