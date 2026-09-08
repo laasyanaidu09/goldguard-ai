@@ -67,7 +67,7 @@ def init_demo_db():
                     "taxes": float(row["taxes"]) if pd.notna(row["taxes"]) else 0.0,
                     "currency": row["currency"],
                     "invoice_reference": row["invoice_reference"] if pd.notna(row["invoice_reference"]) else None,
-                    "image_reference": row["image_reference"] if pd.notna(row["image_reference"]) else None,
+                    "image_reference": (f"/jewellery/{row['image_reference']}" if pd.notna(row["image_reference"]) and not str(row["image_reference"]).startswith("/") and not str(row["image_reference"]).startswith("http") else (row["image_reference"] if pd.notna(row["image_reference"]) else None)),
                     "colour": row["colour"] if "colour" in row and pd.notna(row["colour"]) else "yellow",
                     "documentation_status": doc_status,
                     "data_sources": data_sources,

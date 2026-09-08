@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { api, type Asset, type PortfolioSummary } from "../services/api";
-import { Trash2, Sparkles, ChevronDown, ChevronUp, Send, Edit, AlertTriangle, X, Calculator, Camera, Info, ShieldCheck } from "lucide-react";
+import { 
+  Trash2, Sparkles, ChevronDown, ChevronUp, Send, Edit, AlertTriangle, X, 
+  Calculator, Camera, Info, ShieldCheck, Grid, List, Maximize2, Eye 
+} from "lucide-react";
 import { TryOnModal } from "./TryOnModal";
 
 
@@ -37,6 +40,51 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
   const handleOpenTryOn = (item: typeof tryOnItem) => {
     setTryOnItem(item);
     setIsTryOnOpen(true);
+  };
+
+  // Visual Collection Showcase States
+  const [collectionViewStyle, setCollectionViewStyle] = useState<"gallery" | "table">("gallery");
+  const [selectedImageModal, setSelectedImageModal] = useState<{
+    url: string;
+    name: string;
+    purity: string;
+    gross_weight: number;
+    fine_weight: number;
+    value: number;
+    asset_id: string;
+    category: string;
+  } | null>(null);
+
+  const resolveImageUrl = (imgRef: string | null | undefined, category?: string): string => {
+    if (imgRef && typeof imgRef === "string" && imgRef.trim() !== "") {
+      if (imgRef.startsWith("http://") || imgRef.startsWith("https://") || imgRef.startsWith("data:")) {
+        return imgRef;
+      }
+      if (imgRef.startsWith("/")) {
+        return imgRef;
+      }
+      return `/jewellery/${imgRef}`;
+    }
+    const cat = (category || "").toLowerCase();
+    if (cat.includes("necklace") || cat.includes("haram") || cat.includes("choker")) {
+      return "/jewellery/user_necklace_traditional.jpg";
+    }
+    if (cat.includes("bangle") || cat.includes("kada")) {
+      return "/jewellery/user_bangles_filigree.jpg";
+    }
+    if (cat.includes("ring") || cat.includes("band")) {
+      return "/jewellery/user_geometric_ring.jpg";
+    }
+    if (cat.includes("bracelet") || cat.includes("chain")) {
+      return "/jewellery/user_paperclip_bracelet.jpg";
+    }
+    if (cat.includes("earring") || cat.includes("stud") || cat.includes("jhumka")) {
+      return "/jewellery/user_geometric_ring.jpg";
+    }
+    if (cat.includes("pendant")) {
+      return "/jewellery/user_antique_haram.jpg";
+    }
+    return "/jewellery/user_necklace_traditional.jpg";
   };
 
   // Conversational widget states
@@ -1515,259 +1563,523 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="text-sm font-bold uppercase tracking-wider text-mutedText">Gold Portfolio</h4>
-              <span className="md:hidden text-[10px] text-gold/90 bg-gold/10 px-2 py-0.5 rounded border border-gold/20 font-medium">
-                ↔ Swipe table
-              </span>
+          <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-6">
+            {/* View Switcher & Title */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border pb-4">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <span>My Jewellery Collection</span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-gold/15 text-gold border border-gold/30 font-semibold">
+                    {filteredPortfolio.length} {filteredPortfolio.length === 1 ? "Piece" : "Pieces"}
+                  </span>
+                </h3>
+                <p className="text-xs text-mutedText mt-0.5">
+                  Visual gallery & physical audit of all your hallmarked jewellery holdings
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1.5 p-1 bg-background/80 border border-border rounded-xl self-stretch sm:self-auto justify-center">
+                <button
+                  onClick={() => setCollectionViewStyle("gallery")}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    collectionViewStyle === "gallery"
+                      ? "bg-gold text-background shadow-md shadow-gold/20"
+                      : "text-mutedText hover:text-white"
+                  }`}
+                >
+                  <Grid className="h-3.5 w-3.5" />
+                  <span>Photos Showcase</span>
+                </button>
+                <button
+                  onClick={() => setCollectionViewStyle("table")}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    collectionViewStyle === "table"
+                      ? "bg-gold text-background shadow-md shadow-gold/20"
+                      : "text-mutedText hover:text-white"
+                  }`}
+                >
+                  <List className="h-3.5 w-3.5" />
+                  <span>Data Table</span>
+                </button>
+              </div>
             </div>
-          
-          {portfolio.length > 0 ? (
-            <div className="overflow-x-auto -mx-2 sm:mx-0">
-              <table className="min-w-[880px] w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-border text-xs uppercase tracking-wider text-mutedText">
-                    <th className="pb-3 font-semibold">Jewellery</th>
-                    <th className="pb-3 font-semibold">Purity</th>
-                    <th className="pb-3 font-semibold">Weight</th>
-                    <th className="pb-3 font-semibold">Fine Gold</th>
-                    <th className="pb-3 font-semibold">Purchase Price</th>
-                    <th className="pb-3 font-semibold">Current Gold Value</th>
-                    <th className="pb-3 font-semibold">Estimated Jewellery Value</th>
-                    <th className="pb-3 font-semibold">Provenance</th>
-                    <th className="pb-3 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border text-sm">
+
+            {portfolio.length > 0 ? (
+              collectionViewStyle === "gallery" ? (
+                /* Photos Showcase (Gallery View) */
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredPortfolio.map(a => {
                     const status = a.purchase_price_status || "EXACT";
                     const currentMetalVal = a.current_gold_metal_value || a.estimated_current_value;
-                    
+                    const imgSrc = resolveImageUrl(a.image_reference, a.category);
+
                     return (
-                      <React.Fragment key={a.asset_id}>
-                        <tr className="group hover:bg-cardHover/30">
-                          <td className="py-3 font-medium text-white">
-                            <div className="flex items-center gap-3">
-                              <div className="relative group/img h-10 w-10 shrink-0 bg-background/50 border border-border rounded-lg overflow-hidden flex items-center justify-center">
-                                {a.image_reference ? (
-                                  <>
-                                    <img 
-                                      src={a.image_reference.startsWith('/') ? `http://localhost:8000${a.image_reference}` : a.image_reference} 
-                                      alt={a.name} 
-                                      className="h-full w-full object-cover"
-                                      onError={(e) => {
-                                        e.currentTarget.style.display = 'none';
-                                        const fallback = e.currentTarget.parentElement?.querySelector('.img-fallback');
-                                        if (fallback) {
-                                          fallback.classList.remove('hidden');
+                      <div 
+                        key={a.asset_id}
+                        className="group relative flex flex-col rounded-2xl border border-border/80 bg-background/60 hover:border-gold/50 hover:bg-cardHover/40 hover:shadow-xl hover:shadow-gold/5 transition-all duration-300 overflow-hidden"
+                      >
+                        {/* Photo Showcase Container */}
+                        <div className="relative aspect-[4/3] w-full bg-black/40 overflow-hidden">
+                          <img
+                            src={imgSrc}
+                            alt={a.name}
+                            className="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-500 cursor-pointer"
+                            onClick={() => setSelectedImageModal({
+                              url: imgSrc,
+                              name: a.name,
+                              purity: a.purity,
+                              gross_weight: a.gross_weight_grams,
+                              fine_weight: a.net_gold_weight_grams,
+                              value: currentMetalVal,
+                              asset_id: a.asset_id,
+                              category: a.category
+                            })}
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              if (!target.src.endsWith('/jewellery/user_necklace_traditional.jpg')) {
+                                target.src = '/jewellery/user_necklace_traditional.jpg';
+                              }
+                            }}
+                          />
+
+                          {/* Top Badges */}
+                          <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide backdrop-blur-md bg-black/60 text-gold border border-gold/40 shadow-sm">
+                              {a.purity} Gold
+                            </span>
+                            <span className="px-2 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider backdrop-blur-md bg-black/50 text-white/80 border border-white/10">
+                              {a.category}
+                            </span>
+                          </div>
+
+                          {/* Provenance Badge */}
+                          <div className="absolute top-3 right-3">
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold backdrop-blur-md shadow-sm border ${
+                              a.provenance_status === "INVOICE_VERIFIED"
+                                ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40"
+                                : a.provenance_status === "AI_ESTIMATED"
+                                ? "bg-blue-950/80 text-blue-300 border-blue-500/40"
+                                : "bg-amber-950/80 text-amber-300 border-amber-500/40"
+                            }`}>
+                              {a.provenance_status === "INVOICE_VERIFIED" ? "✓ Verified" : a.provenance_status === "AI_ESTIMATED" ? "AI Est." : "Self-Reported"}
+                            </span>
+                          </div>
+
+                          {/* Hover Overlay Controls */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-3.5">
+                            <div className="flex justify-end">
+                              <button
+                                onClick={() => setSelectedImageModal({
+                                  url: imgSrc,
+                                  name: a.name,
+                                  purity: a.purity,
+                                  gross_weight: a.gross_weight_grams,
+                                  fine_weight: a.net_gold_weight_grams,
+                                  value: currentMetalVal,
+                                  asset_id: a.asset_id,
+                                  category: a.category
+                                })}
+                                className="p-2 rounded-xl bg-black/70 hover:bg-gold hover:text-black text-white backdrop-blur-md border border-white/20 transition shadow-lg"
+                                title="Inspect High-Res Photo"
+                              >
+                                <Maximize2 className="h-4 w-4" />
+                              </button>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2">
+                              <button
+                                onClick={() => handleOpenTryOn({
+                                  category: a.category,
+                                  purity: a.purity,
+                                  style: a.style || "traditional",
+                                  colour: "Yellow Gold",
+                                  image: imgSrc
+                                })}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gold hover:bg-gold-light text-background text-xs font-bold shadow-lg transition"
+                              >
+                                <Sparkles className="h-3.5 w-3.5" />
+                                <span>Virtual Try-On</span>
+                              </button>
+
+                              <label className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-black/70 hover:bg-black/90 text-white text-[11px] font-semibold border border-white/20 backdrop-blur-md cursor-pointer transition">
+                                <Camera className="h-3 w-3 text-gold" />
+                                <span>Change Photo</span>
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  className="hidden" 
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      try {
+                                        const res = await api.uploadAssetImage(a.asset_id, file);
+                                        if (res.status === "success" || res.image_reference) {
+                                          alert("Jewellery picture updated successfully!");
+                                          onAssetAddedOrDeleted();
                                         }
-                                      }}
-                                    />
-                                    <div className="img-fallback hidden text-gold font-semibold text-[10px] flex items-center justify-center w-full h-full bg-gold/5">
-                                      <Sparkles className="h-4.5 w-4.5 text-gold" />
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div className="text-mutedText">
-                                    <Camera className="h-4.5 w-4.5" />
-                                  </div>
-                                )}
-                                <label className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition flex items-center justify-center cursor-pointer text-[9px] text-gold font-bold">
-                                  <span>Upload</span>
-                                  <input 
-                                    type="file" 
-                                    accept="image/*" 
-                                    className="hidden" 
-                                    onChange={async (e) => {
-                                      const file = e.target.files?.[0];
-                                      if (file) {
-                                        try {
-                                          const res = await api.uploadAssetImage(a.asset_id, file);
-                                          if (res.status === "success" || res.image_reference) {
-                                            alert("Jewellery picture uploaded successfully!");
-                                            onAssetAddedOrDeleted();
-                                          }
-                                        } catch (err) {
-                                          alert("Error uploading image");
-                                        }
+                                      } catch (err) {
+                                        alert("Error uploading image");
                                       }
-                                    }}
-                                  />
-                                </label>
+                                    }
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Card Information */}
+                        <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                          <div>
+                            <div className="flex justify-between items-start gap-2">
+                              <h4 className="font-bold text-white text-base leading-snug group-hover:text-gold transition">
+                                {a.name}
+                              </h4>
+                              {a.is_suspicious && (
+                                <span className="shrink-0 text-amber-400" title="Price Warning: Check calculations">
+                                  <AlertTriangle className="h-4 w-4" />
+                                </span>
+                              )}
+                            </div>
+                            {a.notes && (
+                              <p className="text-xs text-mutedText italic mt-1 line-clamp-1">
+                                "{a.notes}"
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Valuation & Weight Stats */}
+                          <div className="bg-background/80 rounded-xl p-3 border border-border/60 space-y-2 text-xs">
+                            <div className="flex justify-between items-center">
+                              <span className="text-mutedText">Current Gold Value:</span>
+                              <span className="font-mono font-bold text-sm text-gold">
+                                {currency} {currentMetalVal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-border/40 text-[11px]">
+                              <div>
+                                <span className="text-mutedText block">Gross Weight</span>
+                                <span className="font-semibold text-white">{a.gross_weight_grams} g</span>
                               </div>
                               <div>
-                                <span className="block font-bold">{a.name}</span>
-                                {a.notes && (
-                                  <span className="block text-[10px] text-mutedText font-normal italic mt-0.5 max-w-xs truncate">
-                                    "{a.notes}"
-                                  </span>
-                                )}
+                                <span className="text-mutedText block">Fine Gold (24K eq)</span>
+                                <span className="font-semibold text-white">{a.net_gold_weight_grams} g</span>
                               </div>
                             </div>
-                          </td>
-                          <td className="py-3 text-white capitalize">{a.purity}</td>
-                          <td className="py-3 text-mutedText">{a.gross_weight_grams} g</td>
-                          <td className="py-3 text-mutedText">{a.net_gold_weight_grams} g</td>
-                          <td className="py-3 text-white font-mono">
-                            {status === "UNKNOWN" ? (
-                              <span className="text-mutedText">Unknown</span>
-                            ) : (
-                              <>
-                                {currency} {(a.purchase_price_converted ?? a.purchase_price)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                {a.currency && a.currency !== currency && (
-                                  <span className="block text-[9px] text-mutedText font-sans mt-0.5">
-                                    Orig: {a.currency} {a.purchase_price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </span>
-                                )}
-                                {a.purchase_price_source && (
-                                  <span className="block text-[8px] text-gold/80 font-sans mt-0.5">
-                                    Src: {a.purchase_price_source}
-                                  </span>
-                                )}
-                                {status === "APPROXIMATE" && (
-                                  <span className="block text-[9px] text-amber-400 font-sans font-normal mt-0.5">Approximate</span>
-                                )}
-                                {a.is_suspicious && (
-                                  <span className="block text-[9px] text-amber-400 font-sans font-bold mt-0.5 flex items-center gap-1">
-                                    <AlertTriangle className="h-3 w-3 inline" /> Price Warning
-                                  </span>
-                                )}
-                              </>
-                            )}
-                          </td>
-                          <td className="py-3 font-bold text-white font-mono">
-                            {currency} {currentMetalVal.toLocaleString()}
-                          </td>
-                          <td className="py-3 text-mutedText font-mono">
-                            {currency} {a.estimated_jewellery_value_min?.toLocaleString(undefined, { maximumFractionDigits: 0 })} – {a.estimated_jewellery_value_max?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                          </td>
-                          <td className="py-3">
-                            <div className="space-y-1">
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide border ${
-                                a.provenance_status === "INVOICE_VERIFIED"
-                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                  : a.provenance_status === "AI_ESTIMATED"
-                                  ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
-                                  : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                              }`}>
-                                {a.provenance_status === "INVOICE_VERIFIED"
-                                  ? "INVOICE VERIFIED"
-                                  : a.provenance_status === "AI_ESTIMATED"
-                                  ? "AI ESTIMATED"
-                                  : "SELF REPORTED"
-                                }
+
+                            <div className="flex justify-between items-center text-[10px] pt-1.5 border-t border-border/40">
+                              <span className="text-mutedText">Est. Jewellery Range:</span>
+                              <span className="font-mono text-mutedText">
+                                {currency} {a.estimated_jewellery_value_min?.toLocaleString(undefined, { maximumFractionDigits: 0 })} – {a.estimated_jewellery_value_max?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                               </span>
-                              {(a.provenance_status === "AI_ESTIMATED" || a.documentation_status === "ai_estimated") && (
-                                <button
-                                  onClick={() => setExpandedAiAssetId(expandedAiAssetId === a.asset_id ? null : a.asset_id)}
-                                  className="block text-[10px] text-gold hover:underline font-bold"
-                                >
-                                  {expandedAiAssetId === a.asset_id ? "Hide details ▲" : "How estimated? ▼"}
-                                </button>
-                              )}
                             </div>
-                          </td>
-                          <td className="py-3 text-right">
-                            <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition duration-150">
-                              {(a.provenance_status === "AI_ESTIMATED" || a.documentation_status === "ai_estimated" || a.documentation_status === "self_reported") && (
-                                <button
-                                  onClick={() => handleEditClick(a)}
-                                  className="rounded px-2 py-1 bg-gold/10 hover:bg-gold text-gold hover:text-background text-[10px] font-bold transition border border-gold/30"
-                                  title="Verify Holding"
-                                >
-                                  Verify
-                                </button>
-                              )}
+
+                            {status !== "UNKNOWN" && (
+                              <div className="flex justify-between items-center text-[10px] text-mutedText">
+                                <span>Purchase Price:</span>
+                                <span className="font-mono text-white/90">
+                                  {currency} {(a.purchase_price_converted ?? a.purchase_price)?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Card Action Row */}
+                          <div className="flex items-center justify-between pt-1 border-t border-border/60">
+                            <button
+                              onClick={() => handleAuditClick(a)}
+                              className="flex items-center gap-1 text-[11px] text-mutedText hover:text-gold transition font-medium"
+                            >
+                              <Calculator className="h-3.5 w-3.5 text-gold" />
+                              <span>Audit Math</span>
+                            </button>
+
+                            <div className="flex items-center gap-1.5">
                               <button
-                                onClick={() => handleAuditClick(a)}
-                                className="rounded p-1.5 text-mutedText hover:bg-gold/10 hover:text-gold transition"
-                                title="Audit calculations"
+                                onClick={() => handleOpenTryOn({
+                                  category: a.category,
+                                  purity: a.purity,
+                                  style: a.style || "traditional",
+                                  colour: "Yellow Gold",
+                                  image: imgSrc
+                                })}
+                                className="p-1.5 text-mutedText hover:text-gold hover:bg-gold/10 rounded-lg transition"
+                                title="Virtual Try-On"
                               >
-                                <Calculator className="h-4 w-4" />
+                                <Sparkles className="h-3.5 w-3.5" />
                               </button>
                               <button
                                 onClick={() => handleEditClick(a)}
-                                className="rounded p-1.5 text-mutedText hover:bg-gold/10 hover:text-gold transition"
-                                title="Edit asset"
+                                className="p-1.5 text-mutedText hover:text-gold hover:bg-gold/10 rounded-lg transition"
+                                title="Edit piece details"
                               >
-                                <Edit className="h-4 w-4" />
+                                <Edit className="h-3.5 w-3.5" />
                               </button>
-                              <button 
+                              <button
                                 onClick={() => handleDeleteClick(a.asset_id)}
-                                className="rounded p-1.5 text-mutedText hover:bg-red-500/10 hover:text-red-400 transition"
-                                title="Delete asset"
+                                className="p-1.5 text-mutedText hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                                title="Remove from collection"
                               >
-                                <Trash2 className="h-4.5 w-4.5" />
+                                <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             </div>
-                          </td>
-                        </tr>
-                        {expandedAiAssetId === a.asset_id && (
-                          <tr key={`${a.asset_id}-estimate-details`} className="bg-background/90 border-b border-border">
-                            <td colSpan={9} className="p-4">
-                              <div className="bg-card border border-gold/30 rounded-xl p-4 space-y-3 text-xs">
-                                <div className="flex justify-between items-center border-b border-border/40 pb-2">
-                                  <h5 className="font-extrabold text-gold flex items-center gap-1.5">
-                                    <Sparkles className="h-4 w-4" />
-                                    How GoldGuard Estimated This: {a.name}
-                                  </h5>
-                                  <span className="text-[10px] text-mutedText">
-                                    Estimation Confidence: <strong className="text-white">{a.estimation_confidence || "Medium"}</strong>
-                                  </span>
-                                </div>
-
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-[11px]">
-                                  <div className="bg-background p-2.5 rounded border border-border/40">
-                                    <span className="text-mutedText text-[10px] block">Estimated Gross Weight</span>
-                                    <span className="text-white font-bold">{a.gross_weight_grams} g</span>
-                                  </div>
-                                  <div className="bg-background p-2.5 rounded border border-border/40">
-                                    <span className="text-mutedText text-[10px] block">Purity & Factor</span>
-                                    <span className="text-white font-bold">{a.purity} ({(a.purity === "24K" ? 99.9 : (a.purity === "18K" ? 75.0 : 91.67))}%)</span>
-                                  </div>
-                                  <div className="bg-background p-2.5 rounded border border-border/40">
-                                    <span className="text-mutedText text-[10px] block">Historical Reference Rate</span>
-                                    <span className="text-gold-light font-bold">{currency} {a.historical_gold_price ? a.historical_gold_price.toFixed(2) : latestRate.toFixed(2)}/g</span>
-                                  </div>
-                                  <div className="bg-background p-2.5 rounded border border-border/40">
-                                    <span className="text-mutedText text-[10px] block">Calculated Fine Gold</span>
-                                    <span className="text-white font-bold">{a.net_gold_weight_grams} g</span>
-                                  </div>
-                                </div>
-
-                                <div className="space-y-1 text-[11px] text-mutedText bg-background p-3 rounded-lg border border-border/40 leading-relaxed">
-                                  <div><strong className="text-white">Estimated Gold Metal Value:</strong> {currency} {(a.historical_gold_value || a.current_gold_metal_value)?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                                  <div><strong className="text-white">Workmanship / Retail Premium Assumption:</strong> 10% – 30% standard retail margin</div>
-                                  <div><strong className="text-white">Method:</strong> Historical gold rate × estimated fine-gold weight + configured retail premium assumptions.</div>
-                                  <p className="text-[10px] text-amber-400/90 pt-1 border-t border-border/30 mt-1 italic">
-                                    * Note: This is an estimate based on available information and historical gold rate tables. It is not an exact invoice price.
-                                  </p>
-                                </div>
-
-                                <div className="flex justify-end gap-2 pt-1">
-                                  <button
-                                    onClick={() => handleEditClick(a)}
-                                    className="bg-gold hover:bg-gold-light text-background font-bold text-xs px-4 py-1.5 rounded transition"
-                                  >
-                                    Verify / Edit Holding
-                                  </button>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
+                          </div>
+                        </div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="py-12 text-center text-sm text-mutedText">No items tracked yet.</div>
-          )}
+                </div>
+              ) : (
+                /* Data Table View */
+                <div className="space-y-3">
+                  <div className="flex justify-end">
+                    <span className="md:hidden text-[10px] text-gold/90 bg-gold/10 px-2 py-0.5 rounded border border-gold/20 font-medium">
+                      ↔ Swipe table horizontally
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto -mx-2 sm:mx-0">
+                    <table className="min-w-[880px] w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-border text-xs uppercase tracking-wider text-mutedText">
+                          <th className="pb-3 font-semibold">Jewellery</th>
+                          <th className="pb-3 font-semibold">Purity</th>
+                          <th className="pb-3 font-semibold">Weight</th>
+                          <th className="pb-3 font-semibold">Fine Gold</th>
+                          <th className="pb-3 font-semibold">Purchase Price</th>
+                          <th className="pb-3 font-semibold">Current Gold Value</th>
+                          <th className="pb-3 font-semibold">Estimated Jewellery Value</th>
+                          <th className="pb-3 font-semibold">Provenance</th>
+                          <th className="pb-3 font-semibold text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border text-sm">
+                        {filteredPortfolio.map(a => {
+                          const status = a.purchase_price_status || "EXACT";
+                          const currentMetalVal = a.current_gold_metal_value || a.estimated_current_value;
+                          const imgSrc = resolveImageUrl(a.image_reference, a.category);
+                          
+                          return (
+                            <React.Fragment key={a.asset_id}>
+                              <tr className="group hover:bg-cardHover/30">
+                                <td className="py-3 font-medium text-white">
+                                  <div className="flex items-center gap-3">
+                                    <div 
+                                      onClick={() => setSelectedImageModal({
+                                        url: imgSrc,
+                                        name: a.name,
+                                        purity: a.purity,
+                                        gross_weight: a.gross_weight_grams,
+                                        fine_weight: a.net_gold_weight_grams,
+                                        value: currentMetalVal,
+                                        asset_id: a.asset_id,
+                                        category: a.category
+                                      })}
+                                      className="relative group/img h-12 w-12 shrink-0 bg-background/80 border border-border hover:border-gold/60 rounded-xl overflow-hidden flex items-center justify-center cursor-pointer shadow-sm transition"
+                                      title="Click to view full photo"
+                                    >
+                                      <img 
+                                        src={imgSrc} 
+                                        alt={a.name} 
+                                        className="h-full w-full object-cover group-hover/img:scale-110 transition duration-200"
+                                        onError={(e) => {
+                                          const target = e.currentTarget;
+                                          if (!target.src.endsWith('/jewellery/user_necklace_traditional.jpg')) {
+                                            target.src = '/jewellery/user_necklace_traditional.jpg';
+                                          }
+                                        }}
+                                      />
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition flex items-center justify-center">
+                                        <Eye className="h-4 w-4 text-gold" />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <span className="block font-bold group-hover:text-gold transition">{a.name}</span>
+                                      {a.notes && (
+                                        <span className="block text-[10px] text-mutedText font-normal italic mt-0.5 max-w-xs truncate">
+                                          "{a.notes}"
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3 text-white capitalize">{a.purity}</td>
+                                <td className="py-3 text-mutedText">{a.gross_weight_grams} g</td>
+                                <td className="py-3 text-mutedText">{a.net_gold_weight_grams} g</td>
+                                <td className="py-3 text-white font-mono">
+                                  {status === "UNKNOWN" ? (
+                                    <span className="text-mutedText">Unknown</span>
+                                  ) : (
+                                    <>
+                                      {currency} {(a.purchase_price_converted ?? a.purchase_price)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      {a.currency && a.currency !== currency && (
+                                        <span className="block text-[9px] text-mutedText font-sans mt-0.5">
+                                          Orig: {a.currency} {a.purchase_price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                      )}
+                                      {a.purchase_price_source && (
+                                        <span className="block text-[8px] text-gold/80 font-sans mt-0.5">
+                                          Src: {a.purchase_price_source}
+                                        </span>
+                                      )}
+                                      {status === "APPROXIMATE" && (
+                                        <span className="block text-[9px] text-amber-400 font-sans font-normal mt-0.5">Approximate</span>
+                                      )}
+                                      {a.is_suspicious && (
+                                        <span className="block text-[9px] text-amber-400 font-sans font-bold mt-0.5 flex items-center gap-1">
+                                          <AlertTriangle className="h-3 w-3 inline" /> Price Warning
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
+                                </td>
+                                <td className="py-3 font-bold text-white font-mono">
+                                  {currency} {currentMetalVal.toLocaleString()}
+                                </td>
+                                <td className="py-3 text-mutedText font-mono">
+                                  {currency} {a.estimated_jewellery_value_min?.toLocaleString(undefined, { maximumFractionDigits: 0 })} – {a.estimated_jewellery_value_max?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                </td>
+                                <td className="py-3">
+                                  <div className="space-y-1">
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide border ${
+                                      a.provenance_status === "INVOICE_VERIFIED"
+                                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                        : a.provenance_status === "AI_ESTIMATED"
+                                        ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                                        : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                                    }`}>
+                                      {a.provenance_status === "INVOICE_VERIFIED"
+                                        ? "INVOICE VERIFIED"
+                                        : a.provenance_status === "AI_ESTIMATED"
+                                        ? "AI ESTIMATED"
+                                        : "SELF REPORTED"
+                                      }
+                                    </span>
+                                    {(a.provenance_status === "AI_ESTIMATED" || a.documentation_status === "ai_estimated") && (
+                                      <button
+                                        onClick={() => setExpandedAiAssetId(expandedAiAssetId === a.asset_id ? null : a.asset_id)}
+                                        className="block text-[10px] text-gold hover:underline font-bold"
+                                      >
+                                        {expandedAiAssetId === a.asset_id ? "Hide details ▲" : "How estimated? ▼"}
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 text-right">
+                                  <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition duration-150">
+                                    <button
+                                      onClick={() => handleOpenTryOn({
+                                        category: a.category,
+                                        purity: a.purity,
+                                        style: a.style || "traditional",
+                                        colour: "Yellow Gold",
+                                        image: imgSrc
+                                      })}
+                                      className="rounded p-1.5 text-mutedText hover:bg-gold/10 hover:text-gold transition"
+                                      title="Virtual Try-On"
+                                    >
+                                      <Sparkles className="h-4 w-4" />
+                                    </button>
+                                    {(a.provenance_status === "AI_ESTIMATED" || a.documentation_status === "ai_estimated" || a.documentation_status === "self_reported") && (
+                                      <button
+                                        onClick={() => handleEditClick(a)}
+                                        className="rounded px-2 py-1 bg-gold/10 hover:bg-gold text-gold hover:text-background text-[10px] font-bold transition border border-gold/30"
+                                        title="Verify Holding"
+                                      >
+                                        Verify
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleAuditClick(a)}
+                                      className="rounded p-1.5 text-mutedText hover:bg-gold/10 hover:text-gold transition"
+                                      title="Audit calculations"
+                                    >
+                                      <Calculator className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleEditClick(a)}
+                                      className="rounded p-1.5 text-mutedText hover:bg-gold/10 hover:text-gold transition"
+                                      title="Edit asset"
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeleteClick(a.asset_id)}
+                                      className="rounded p-1.5 text-mutedText hover:bg-red-500/10 hover:text-red-400 transition"
+                                      title="Delete asset"
+                                    >
+                                      <Trash2 className="h-4.5 w-4.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                              {expandedAiAssetId === a.asset_id && (
+                                <tr key={`${a.asset_id}-estimate-details`} className="bg-background/90 border-b border-border">
+                                  <td colSpan={9} className="p-4">
+                                    <div className="bg-card border border-gold/30 rounded-xl p-4 space-y-3 text-xs">
+                                      <div className="flex justify-between items-center border-b border-border/40 pb-2">
+                                        <h5 className="font-extrabold text-gold flex items-center gap-1.5">
+                                          <Sparkles className="h-4 w-4" />
+                                          How GoldGuard Estimated This: {a.name}
+                                        </h5>
+                                        <span className="text-[10px] text-mutedText">
+                                          Estimation Confidence: <strong className="text-white">{a.estimation_confidence || "Medium"}</strong>
+                                        </span>
+                                      </div>
+
+                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-[11px]">
+                                        <div className="bg-background p-2.5 rounded border border-border/40">
+                                          <span className="text-mutedText text-[10px] block">Estimated Gross Weight</span>
+                                          <span className="text-white font-bold">{a.gross_weight_grams} g</span>
+                                        </div>
+                                        <div className="bg-background p-2.5 rounded border border-border/40">
+                                          <span className="text-mutedText text-[10px] block">Purity & Factor</span>
+                                          <span className="text-white font-bold">{a.purity} ({(a.purity === "24K" ? 99.9 : (a.purity === "18K" ? 75.0 : 91.67))}%)</span>
+                                        </div>
+                                        <div className="bg-background p-2.5 rounded border border-border/40">
+                                          <span className="text-mutedText text-[10px] block">Historical Reference Rate</span>
+                                          <span className="text-gold-light font-bold">{currency} {a.historical_gold_price ? a.historical_gold_price.toFixed(2) : latestRate.toFixed(2)}/g</span>
+                                        </div>
+                                        <div className="bg-background p-2.5 rounded border border-border/40">
+                                          <span className="text-mutedText text-[10px] block">Calculated Fine Gold</span>
+                                          <span className="text-white font-bold">{a.net_gold_weight_grams} g</span>
+                                        </div>
+                                      </div>
+
+                                      <div className="space-y-1 text-[11px] text-mutedText bg-background p-3 rounded-lg border border-border/40 leading-relaxed">
+                                        <div><strong className="text-white">Estimated Gold Metal Value:</strong> {currency} {(a.historical_gold_value || a.current_gold_metal_value)?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                                        <div><strong className="text-white">Workmanship / Retail Premium Assumption:</strong> 10% – 30% standard retail margin</div>
+                                        <div><strong className="text-white">Method:</strong> Historical gold rate × estimated fine-gold weight + configured retail premium assumptions.</div>
+                                        <p className="text-[10px] text-amber-400/90 pt-1 border-t border-border/30 mt-1 italic">
+                                          * Note: This is an estimate based on available information and historical gold rate tables. It is not an exact invoice price.
+                                        </p>
+                                      </div>
+
+                                      <div className="flex justify-end gap-2 pt-1">
+                                        <button
+                                          onClick={() => handleEditClick(a)}
+                                          className="bg-gold hover:bg-gold-light text-background font-bold text-xs px-4 py-1.5 rounded transition"
+                                        >
+                                          Verify / Edit Holding
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )
+            ) : (
+              <div className="py-12 text-center text-sm text-mutedText">No items tracked yet.</div>
+            )}
+          </div>
         </div>
-      </div>
       )}
 
 
@@ -2242,6 +2554,113 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
               >
                 Save Anyway
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* High-Resolution Photo Lightbox Modal */}
+      {selectedImageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="relative w-full max-w-2xl rounded-2xl border border-gold/30 bg-card p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center border-b border-border pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <span>{selectedImageModal.name}</span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-gold/15 text-gold border border-gold/30 font-semibold">
+                    {selectedImageModal.purity} Gold
+                  </span>
+                </h3>
+                <span className="text-xs text-mutedText uppercase tracking-wider">
+                  Category: {selectedImageModal.category}
+                </span>
+              </div>
+              <button 
+                onClick={() => setSelectedImageModal(null)} 
+                className="rounded-lg p-1.5 text-mutedText hover:text-white hover:bg-cardHover transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Large High-Res Image View */}
+            <div className="relative flex-1 min-h-[260px] max-h-[50vh] bg-black/70 rounded-xl overflow-hidden flex items-center justify-center border border-border/60">
+              <img
+                src={selectedImageModal.url}
+                alt={selectedImageModal.name}
+                className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
+              />
+            </div>
+
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-3 gap-3 bg-background/90 p-3 rounded-xl border border-border text-center">
+              <div>
+                <span className="text-[10px] text-mutedText uppercase tracking-wider block font-medium">Gross Weight</span>
+                <span className="text-sm font-bold text-white font-mono">{selectedImageModal.gross_weight}g</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-mutedText uppercase tracking-wider block font-medium">Fine Gold</span>
+                <span className="text-sm font-bold text-white font-mono">{selectedImageModal.fine_weight}g</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-mutedText uppercase tracking-wider block font-medium">Current Gold Value</span>
+                <span className="text-sm font-bold text-gold font-mono">{currency} {selectedImageModal.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <label className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-background hover:bg-cardHover text-white text-xs font-semibold border border-border cursor-pointer transition">
+                <Camera className="h-4 w-4 text-gold" />
+                <span>Upload Custom Photo</span>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      try {
+                        const res = await api.uploadAssetImage(selectedImageModal.asset_id, file);
+                        if (res.status === "success" || res.image_reference) {
+                          alert("Jewellery picture updated successfully!");
+                          setSelectedImageModal(null);
+                          onAssetAddedOrDeleted();
+                        }
+                      } catch (err) {
+                        alert("Error uploading image");
+                      }
+                    }
+                  }}
+                />
+              </label>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const modal = selectedImageModal;
+                    setSelectedImageModal(null);
+                    handleOpenTryOn({
+                      category: modal.category,
+                      purity: modal.purity,
+                      style: "traditional",
+                      colour: "Yellow Gold",
+                      image: modal.url
+                    });
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gold hover:bg-gold-light text-background text-xs font-bold transition shadow-md"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>Virtual Try-On</span>
+                </button>
+
+                <button
+                  onClick={() => setSelectedImageModal(null)}
+                  className="px-4 py-2 rounded-lg border border-border text-mutedText hover:text-white text-xs font-medium hover:bg-cardHover transition"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

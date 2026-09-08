@@ -849,6 +849,10 @@ async def upload_asset_image(asset_id: str, file: UploadFile = File(...), user_i
     database.update_user_asset(user_id, asset_id, {"image_reference": relative_path})
     return {"status": "success", "image_reference": relative_path}
 
-# Serve static compiled files in production
+# Serve static compiled files and media in production
 if os.path.exists("static"):
+    os.makedirs("static/jewellery", exist_ok=True)
+    os.makedirs("static/uploads", exist_ok=True)
+    app.mount("/jewellery", StaticFiles(directory="static/jewellery"), name="jewellery")
+    app.mount("/uploads", StaticFiles(directory="static/uploads"), name="uploads")
     app.mount("/", StaticFiles(directory="static", html=True), name="static")
