@@ -33,7 +33,7 @@ export const PlanPurchase: React.FC<PlanPurchaseProps> = ({ currency, market, pr
   const [timelineMonths, setTimelineMonths] = useState<number>(12);
   const [portfolio, setPortfolio] = useState<Asset[]>([]);
   const [selectedExchangeIds, setSelectedExchangeIds] = useState<string[]>([]);
-  const [latestRate, setLatestRate] = useState<number>(75.50 * (currency === "SGD" ? 1.34 : (currency === "INR" ? 83.5 : 1)));
+  const [latestRate, setLatestRate] = useState<number>(141.72 * (currency === "SGD" ? 1.34 : (currency === "INR" ? 83.5 : (currency === "AED" ? 3.67 : 1))));
   
   // Customization States
   const [customCategory, setCustomCategory] = useState<string>("earrings");

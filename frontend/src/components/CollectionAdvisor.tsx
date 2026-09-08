@@ -34,8 +34,8 @@ export const CollectionAdvisor: React.FC<CollectionAdvisorProps> = ({ currency, 
         const latestRate = priceRes.latest_price;
         setSpotPrice(latestRate);
         
-        // Estimate rate factor relative to USD rate (~75.50)
-        const rateFactor = latestRate / 75.50;
+        // Estimate rate factor relative to USD rate (~141.72)
+        const rateFactor = latestRate / 141.72;
         setExchangeRates(prev => ({ ...prev, [currency]: rateFactor }));
 
         // Fetch portfolio
@@ -138,7 +138,7 @@ export const CollectionAdvisor: React.FC<CollectionAdvisorProps> = ({ currency, 
       </div>
 
       {/* Sub-tab selection */}
-      <div className="flex border-b border-border gap-2">
+      <div className="flex border-b border-border gap-2 overflow-x-auto whitespace-nowrap pb-0.5">
         <button
           onClick={() => setSubTab("advisor")}
           className={`pb-3 px-4 font-bold text-xs uppercase transition border-b-2 ${subTab === "advisor" ? "border-gold text-gold" : "border-transparent text-mutedText hover:text-white"}`}

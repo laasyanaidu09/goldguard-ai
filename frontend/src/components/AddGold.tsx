@@ -403,30 +403,30 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
           <div className="flex border-b border-border bg-card rounded-t-xl p-1 gap-1">
             <button
               onClick={() => setActiveOption("invoice")}
-              className={`flex-1 py-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-2.5 sm:py-3 px-1 sm:px-3 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 sm:gap-1.5 ${
                 activeOption === "invoice" ? "bg-gold text-background" : "text-mutedText hover:text-white"
               }`}
             >
-              <FileText className="h-4.5 w-4.5" />
-              Upload Invoice
+              <FileText className="h-4 w-4 shrink-0" />
+              <span><span className="hidden sm:inline">Upload </span>Invoice</span>
             </button>
             <button
               onClick={() => setActiveOption("image")}
-              className={`flex-1 py-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-2.5 sm:py-3 px-1 sm:px-3 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 sm:gap-1.5 ${
                 activeOption === "image" ? "bg-gold text-background" : "text-mutedText hover:text-white"
               }`}
             >
-              <Sparkles className="h-4.5 w-4.5" />
-              Upload Jewellery Photo
+              <Sparkles className="h-4 w-4 shrink-0" />
+              <span><span className="hidden sm:inline">Upload </span>Photo</span>
             </button>
             <button
               onClick={() => setActiveOption("manual")}
-              className={`flex-1 py-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-2.5 sm:py-3 px-1 sm:px-3 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 sm:gap-1.5 ${
                 activeOption === "manual" ? "bg-gold text-background" : "text-mutedText hover:text-white"
               }`}
             >
-              <Plus className="h-4.5 w-4.5" />
-              Enter Manually
+              <Plus className="h-4 w-4 shrink-0" />
+              <span><span className="hidden sm:inline">Enter </span>Manual</span>
             </button>
           </div>
 

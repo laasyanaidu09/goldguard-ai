@@ -16,6 +16,7 @@ COPY backend/ .
 
 # Copy analytics and catalog datasets
 COPY data/ ./data/
+COPY data/ /data/
 
 EXPOSE 8080
 

@@ -35,7 +35,7 @@ export const MarketIntelligence: React.FC<MarketIntelligenceProps> = ({ currency
   }
 
   const prices = data?.prices || [];
-  const latestPrice = data?.latest_price || 75.50;
+  const latestPrice = data?.latest_price || (141.72 * (currency === "SGD" ? 1.34 : (currency === "INR" ? 83.5 : 1)));
   const latestDailyClose = data?.latest_daily_close || latestPrice;
   const volatility = data?.volatility || 12.4;
   const percentile = data?.percentile || 24.5;

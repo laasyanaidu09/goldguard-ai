@@ -21,7 +21,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
   const [portfolio, setPortfolio] = useState<Asset[]>([]);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [latestRate, setLatestRate] = useState<number>(75.50);
+  const [latestRate, setLatestRate] = useState<number>(141.72 * (currency === "SGD" ? 1.34 : (currency === "INR" ? 83.5 : (currency === "AED" ? 3.67 : 1))));
   const [showCalculationInfo, setShowCalculationInfo] = useState(false);
 
   // Try-On States
@@ -487,14 +487,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
         <>
           {/* SECTION 1 — Your Gold Wealth */}
           <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="px-6 py-3 border-b border-border bg-background flex justify-between items-center">
+            <div className="px-4 sm:px-6 py-3 border-b border-border bg-background flex flex-wrap justify-between items-center gap-2">
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">Your Gold Wealth</h3>
               <span className="text-[10px] text-mutedText">Home Currency: {currency}</span>
             </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6 bg-gradient-to-br from-card to-cardHover">
+            <div className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 bg-gradient-to-br from-card to-cardHover">
               <div>
                 <span className="text-[11px] uppercase tracking-wider text-mutedText block font-semibold">Gold Owned (Gross)</span>
-                <span className="text-3xl font-black text-white mt-1 block font-mono">
+                <span className="text-2xl sm:text-3xl font-black text-white mt-1 block font-mono">
                   {summary?.total_gross_weight_grams.toFixed(2)} g
                 </span>
                 <p className="text-[10px] text-mutedText mt-1">Total weight of physical jewellery items</p>
@@ -502,7 +502,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
 
               <div>
                 <span className="text-[11px] uppercase tracking-wider text-mutedText block font-semibold">Fine Gold</span>
-                <span className="text-3xl font-black text-white mt-1 block font-mono">
+                <span className="text-2xl sm:text-3xl font-black text-white mt-1 block font-mono">
                   {summary?.total_net_gold_weight_grams.toFixed(2)} g
                 </span>
                 <p className="text-[10px] text-mutedText mt-1">Pure gold content weight</p>
@@ -510,7 +510,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
 
               <div>
                 <span className="text-[11px] uppercase tracking-wider text-mutedText block font-semibold">Current Gold Value</span>
-                <span className="text-3xl font-black text-white mt-1 block font-mono text-gold">
+                <span className="text-2xl sm:text-3xl font-black text-white mt-1 block font-mono text-gold break-words">
                   {currency} {summary?.estimated_current_value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
                 <p className="text-[10px] text-mutedText mt-1">Market value of pure gold content today</p>
@@ -518,7 +518,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
 
               <div>
                 <span className="text-[11px] uppercase tracking-wider text-mutedText block font-semibold text-gold-light">Gold Metal Value Growth</span>
-                <span className={`text-3xl font-black mt-1 block ${summary && summary.gain_loss >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                <span className={`text-2xl sm:text-3xl font-black mt-1 block ${summary && summary.gain_loss >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                   {summary && summary.gain_loss >= 0 ? "+" : ""}
                   {summary?.gain_loss_percent.toFixed(2)}%
                 </span>
@@ -531,7 +531,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
 
           {/* SECTION 2 — Gold Portfolio Health */}
           <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="px-6 py-3 border-b border-border bg-background flex justify-between items-center">
+            <div className="px-4 sm:px-6 py-3 border-b border-border bg-background flex flex-wrap justify-between items-center gap-2">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4.5 w-4.5 text-gold" />
                 <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">Gold Portfolio Health</h3>
@@ -547,7 +547,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
               </span>
             </div>
 
-            <div className="p-6 bg-gradient-to-br from-card to-background space-y-6">
+            <div className="p-4 sm:p-6 bg-gradient-to-br from-card to-background space-y-6">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                   <span className="text-[11px] uppercase tracking-wider text-mutedText block font-semibold">Overall Health Index</span>
@@ -691,7 +691,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
 
           {/* SECTION 3 — Current Gold Market */}
           <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="px-6 py-3 border-b border-border bg-background flex justify-between items-center">
+            <div className="px-4 sm:px-6 py-3 border-b border-border bg-background flex flex-wrap justify-between items-center gap-2">
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">Current Gold Market</h3>
               <span className="text-[10px] text-mutedText font-semibold flex items-center gap-1.5">
                 <span className={`h-1.5 w-1.5 rounded-full ${isDemoMode ? "bg-amber-400" : "bg-emerald-500"}`}></span>
@@ -699,8 +699,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
               </span>
             </div>
             
-            <div className="px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border">
-              <div className="flex flex-wrap gap-6 text-sm font-semibold">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 border-b border-border">
+              <div className="flex flex-wrap gap-3 sm:gap-6 text-xs sm:text-sm font-semibold">
                 <div className="group relative">
                   <span className="text-mutedText hover:underline cursor-help">24K Gold Rate: </span>
                   <span className="text-gold">{currency} {goldRate24K.toFixed(2)}/g</span>
@@ -726,7 +726,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
 
               <button
                 onClick={() => setShowCalculationInfo(!showCalculationInfo)}
-                className="text-xs text-gold hover:text-gold-light font-bold flex items-center gap-1 focus:outline-none"
+                className="text-xs text-gold hover:text-gold-light font-bold flex items-center gap-1 focus:outline-none shrink-0"
               >
                 How is this calculated?
                 {showCalculationInfo ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -734,7 +734,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
             </div>
 
             {/* Transparent Info panel */}
-            <div className="px-6 py-3 bg-background/30 text-xs text-mutedText grid grid-cols-2 md:grid-cols-4 gap-4 border-b border-border">
+            <div className="px-4 sm:px-6 py-3 bg-background/30 text-[11px] sm:text-xs text-mutedText grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4 border-b border-border">
               <div><strong className="text-white">Updated:</strong> {new Date().toLocaleDateString()}</div>
               <div><strong className="text-white">Currency:</strong> {currency}</div>
               <div><strong className="text-white">Unit:</strong> per gram</div>
@@ -1515,12 +1515,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-card p-5">
-            <h4 className="text-sm font-bold uppercase tracking-wider text-mutedText mb-4">Gold Portfolio</h4>
+          <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="text-sm font-bold uppercase tracking-wider text-mutedText">Gold Portfolio</h4>
+              <span className="md:hidden text-[10px] text-gold/90 bg-gold/10 px-2 py-0.5 rounded border border-gold/20 font-medium">
+                ↔ Swipe table
+              </span>
+            </div>
           
           {portfolio.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
+              <table className="min-w-[880px] w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-border text-xs uppercase tracking-wider text-mutedText">
                     <th className="pb-3 font-semibold">Jewellery</th>

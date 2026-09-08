@@ -90,16 +90,16 @@ const mockPrices = (currency: string): MarketResponse => {
   const mult = rates[currency] || 1.34;
   return {
     prices: [
-      { date: "2026-08-20", gold_price: 74.20 * mult },
-      { date: "2026-08-21", gold_price: 74.50 * mult },
-      { date: "2026-08-22", gold_price: 74.80 * mult },
-      { date: "2026-08-23", gold_price: 75.10 * mult },
-      { date: "2026-08-24", gold_price: 75.50 * mult },
-      { date: "2026-08-25", gold_price: 75.80 * mult },
-      { date: "2026-08-26", gold_price: 75.30 * mult },
-      { date: "2026-08-27", gold_price: 75.50 * mult }
+      { date: "2026-08-20", gold_price: 139.80 * mult },
+      { date: "2026-08-21", gold_price: 140.20 * mult },
+      { date: "2026-08-22", gold_price: 140.70 * mult },
+      { date: "2026-08-23", gold_price: 141.10 * mult },
+      { date: "2026-08-24", gold_price: 141.72 * mult },
+      { date: "2026-08-25", gold_price: 141.90 * mult },
+      { date: "2026-08-26", gold_price: 141.50 * mult },
+      { date: "2026-08-27", gold_price: 141.72 * mult }
     ],
-    latest_price: 75.50 * mult,
+    latest_price: 141.72 * mult,
     daily_change_percent: 0.27,
     monthly_change_percent: 2.14,
     currency
@@ -131,17 +131,17 @@ const mockPortfolio = (currency: string): PortfolioResponse => {
       image_reference: null,
       documentation_status: "verified_invoice",
       data_sources: { name: "invoice", purity: "invoice", weight: "invoice", purchase_price: "invoice" },
-      estimated_current_value: 44.46 * 75.50 * mult,
-      current_gold_metal_value: 44.46 * 75.50 * mult,
+      estimated_current_value: 44.46 * 141.72 * mult,
+      current_gold_metal_value: 44.46 * 141.72 * mult,
       last_updated: new Date().toISOString(),
       purchase_price_status: "EXACT",
       purchase_price_source: "INVOICE",
       provenance_status: "INVOICE_VERIFIED",
       historical_gold_value: 44.46 * 55.40 * mult,
-      estimated_jewellery_value_min: 44.46 * 75.50 * mult * 1.10,
-      estimated_jewellery_value_max: 44.46 * 75.50 * mult * 1.30,
-      estimated_liquidation_value_min: 44.46 * 75.50 * mult * 0.98,
-      estimated_liquidation_value_max: 44.46 * 75.50 * mult * 1.00,
+      estimated_jewellery_value_min: 44.46 * 141.72 * mult * 1.10,
+      estimated_jewellery_value_max: 44.46 * 141.72 * mult * 1.30,
+      estimated_liquidation_value_min: 44.46 * 141.72 * mult * 0.98,
+      estimated_liquidation_value_max: 44.46 * 141.72 * mult * 1.00,
       historical_gold_price: 55.40 * mult,
       historical_gold_price_currency: "USD",
       historical_gold_price_date: "2022-10-15",
@@ -167,17 +167,17 @@ const mockPortfolio = (currency: string): PortfolioResponse => {
       image_reference: null,
       documentation_status: "verified_invoice",
       data_sources: { name: "invoice", purity: "invoice", weight: "invoice", purchase_price: "invoice" },
-      estimated_current_value: 29.33 * 75.50 * mult,
-      current_gold_metal_value: 29.33 * 75.50 * mult,
+      estimated_current_value: 29.33 * 141.72 * mult,
+      current_gold_metal_value: 29.33 * 141.72 * mult,
       last_updated: new Date().toISOString(),
       purchase_price_status: "EXACT",
       purchase_price_source: "INVOICE",
       provenance_status: "INVOICE_VERIFIED",
       historical_gold_value: 29.33 * 58.10 * mult,
-      estimated_jewellery_value_min: 29.33 * 75.50 * mult * 1.10,
-      estimated_jewellery_value_max: 29.33 * 75.50 * mult * 1.30,
-      estimated_liquidation_value_min: 29.33 * 75.50 * mult * 0.98,
-      estimated_liquidation_value_max: 29.33 * 75.50 * mult * 1.00,
+      estimated_jewellery_value_min: 29.33 * 141.72 * mult * 1.10,
+      estimated_jewellery_value_max: 29.33 * 141.72 * mult * 1.30,
+      estimated_liquidation_value_min: 29.33 * 141.72 * mult * 0.98,
+      estimated_liquidation_value_max: 29.33 * 141.72 * mult * 1.00,
       historical_gold_price: 58.10 * mult,
       historical_gold_price_currency: "USD",
       historical_gold_price_date: "2023-04-12",
@@ -203,17 +203,17 @@ const mockPortfolio = (currency: string): PortfolioResponse => {
       image_reference: null,
       documentation_status: "self_reported",
       data_sources: { name: "user_input", purity: "user_input", weight: "user_input", purchase_price: "user_input" },
-      estimated_current_value: 91.67 * 75.50 * mult,
-      current_gold_metal_value: 91.67 * 75.50 * mult,
+      estimated_current_value: 91.67 * 141.72 * mult,
+      current_gold_metal_value: 91.67 * 141.72 * mult,
       last_updated: new Date().toISOString(),
       purchase_price_status: "APPROXIMATE",
       purchase_price_source: "USER_APPROXIMATE",
       provenance_status: "SELF_REPORTED",
       historical_gold_value: 91.67 * 45.00 * mult,
-      estimated_jewellery_value_min: 91.67 * 75.50 * mult * 1.10,
-      estimated_jewellery_value_max: 91.67 * 75.50 * mult * 1.30,
-      estimated_liquidation_value_min: 91.67 * 75.50 * mult * 0.98,
-      estimated_liquidation_value_max: 91.67 * 75.50 * mult * 1.00,
+      estimated_jewellery_value_min: 91.67 * 141.72 * mult * 1.10,
+      estimated_jewellery_value_max: 91.67 * 141.72 * mult * 1.30,
+      estimated_liquidation_value_min: 91.67 * 141.72 * mult * 0.98,
+      estimated_liquidation_value_max: 91.67 * 141.72 * mult * 1.00,
       historical_gold_price: 45.00 * mult,
       historical_gold_price_currency: "USD",
       historical_gold_price_date: "2019 Estimate",
@@ -223,7 +223,7 @@ const mockPortfolio = (currency: string): PortfolioResponse => {
   ];
 
   const totalPurchase = (2850.00 * mult) + (1950.00 * mult) + (6419.00 * (mult / 1.34));
-  const totalVal = (44.46 + 29.33 + 91.67) * 75.50 * mult;
+  const totalVal = (44.46 + 29.33 + 91.67) * 141.72 * mult;
   const totalHistVal = ((44.46 * 55.40) + (29.33 * 58.10) + (91.67 * 45.00)) * mult;
 
   // Dynamic fallback category recommendations calculation
@@ -666,7 +666,7 @@ export const api = {
       // High fidelity client-side calculations replicating backend orchestrator
       const rates: Record<string, number> = { USD: 1, SGD: 1.34, INR: 83.5, AED: 3.67, EUR: 0.9, GBP: 0.77 };
       const mult = rates[payload.home_currency] || 1.34;
-      const spotRate = 75.50 * mult;
+      const spotRate = 141.72 * mult;
       
       const categoryLower = payload.target_category?.toLowerCase() || "bracelet";
       const isNecklace = categoryLower === "necklace" || payload.target_design_image_filename?.toLowerCase().includes("necklace");

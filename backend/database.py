@@ -11,9 +11,16 @@ load_dotenv()
 DEMO_MODE = os.getenv("DEMO_MODE", "true").lower() == "true"
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "")
 
-# Absolute paths relative to this file's folder to ensure robust loading
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, "data")
+# Absolute paths relative to this file's folder to ensure robust loading across local and Docker environments
+_curr_dir = os.path.dirname(os.path.abspath(__file__))
+if os.path.exists(os.path.join(_curr_dir, "data")):
+    DATA_DIR = os.path.join(_curr_dir, "data")
+elif os.path.exists(os.path.join(os.path.dirname(_curr_dir), "data")):
+    DATA_DIR = os.path.join(os.path.dirname(_curr_dir), "data")
+elif os.path.exists("/data"):
+    DATA_DIR = "/data"
+else:
+    DATA_DIR = os.path.join(os.getcwd(), "data")
 
 # Local cache for portfolios in Demo Mode to support dynamic in-memory modifications
 _demo_portfolios = {}
@@ -178,6 +185,7 @@ def load_user_portfolio(user_id: str) -> list:
     # Live Firestore mode
     db = get_db()
     if db is None:
+        init_demo_db()
         return _demo_portfolios.get(user_id, [])
         
     try:
@@ -188,9 +196,13 @@ def load_user_portfolio(user_id: str) -> list:
             asset = doc.to_dict()
             asset["asset_id"] = doc.id
             assets.append(asset)
+        if not assets:
+            init_demo_db()
+            return _demo_portfolios.get(user_id, [])
         return assets
     except Exception as e:
         print(f"Firestore error: {e}. Falling back to demo data.")
+        init_demo_db()
         return _demo_portfolios.get(user_id, [])
 
 def add_user_asset(user_id: str, asset: dict) -> dict:
