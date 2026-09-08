@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api, type Asset, type PortfolioSummary } from "../services/api";
 import { 
   Trash2, Sparkles, ChevronDown, ChevronUp, Send, Edit, AlertTriangle, X, 
-  Calculator, Camera, Info, ShieldCheck, Grid, List, Maximize2, Eye 
+  Calculator, Camera, Info, Grid, List, Maximize2, Eye 
 } from "lucide-react";
 import { TryOnModal } from "./TryOnModal";
 
@@ -143,23 +143,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [pendingSaveAssetPayload, setPendingSaveAssetPayload] = useState<any | null>(null);
 
-  // Health check & simulator states
+  // Market mode & UI states
   const [isDemoMode, setIsDemoMode] = useState<boolean>(true);
-  const [showSimulator, setShowSimulator] = useState<boolean>(false);
-  const [simCategory, setSimCategory] = useState<string>("bracelet");
-  const [simWeight, setSimWeight] = useState<number>(20);
-  const [simPurity, setSimPurity] = useState<string>("22K");
-  const [showHealthScoreInfo, setShowHealthScoreInfo] = useState<boolean>(false);
   const [showWhyNotNecklace, setShowWhyNotNecklace] = useState<boolean>(false);
   const [expandedAiAssetId, setExpandedAiAssetId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const selectedRec = summary?.category_recommendations?.selected_recommendation;
-    if (selectedRec) {
-      setSimCategory(selectedRec.category.toLowerCase());
-      setSimWeight(selectedRec.simulated_weight || 10);
-    }
-  }, [summary]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -289,7 +276,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
       historical_gold_price_currency: editForm.historical_gold_price_currency,
       historical_gold_price_date: editForm.historical_gold_price_date || editForm.purchase_date,
       estimation_confidence: editForm.estimation_confidence,
-      estimation_method: editForm.estimation_method
+      estimation_method: editForm.estimation_method,
+      image_reference: editingAsset?.image_reference || null
     };
 
     if (isSuspicious) {
@@ -490,18 +478,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
     );
   }
 
-  const currentCategoryWeights: Record<string, number> = {};
-  portfolio.forEach(a => {
-    const cat = a.category.toLowerCase();
-    currentCategoryWeights[cat] = (currentCategoryWeights[cat] || 0) + a.gross_weight_grams;
-  });
-
-  const grossTotal = summary?.total_gross_weight_grams || 0;
-  const projectedCategoryWeights = { ...currentCategoryWeights };
-  projectedCategoryWeights[simCategory] = (projectedCategoryWeights[simCategory] || 0) + simWeight;
-  const newGrossTotal = grossTotal + simWeight;
-  const projectedHighestPct = newGrossTotal > 0 ? Math.max(...Object.values(projectedCategoryWeights)) / newGrossTotal : 0;
-
   const purityDist = getPurityDistribution();
 
   const categoryDist = getCategoryDistribution();
@@ -577,167 +553,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
             </div>
           </div>
 
-          {/* SECTION 2 — Gold Portfolio Health */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="px-4 sm:px-6 py-3 border-b border-border bg-background flex flex-wrap justify-between items-center gap-2">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="h-4.5 w-4.5 text-gold" />
-                <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">Gold Portfolio Health</h3>
-              </div>
-              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                (summary?.health_score?.overall_score || 72) >= 80 
-                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-                  : ((summary?.health_score?.overall_score || 72) >= 60 
-                      ? "bg-amber-500/10 text-amber-400 border-amber-500/20" 
-                      : "bg-rose-500/10 text-rose-400 border-rose-500/20")
-              }`}>
-                {summary?.health_score?.grade || "Good / Strong"}
-              </span>
-            </div>
-
-            <div className="p-4 sm:p-6 bg-gradient-to-br from-card to-background space-y-6">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                  <span className="text-[11px] uppercase tracking-wider text-mutedText block font-semibold">Overall Health Index</span>
-                  <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-4xl font-black text-white font-mono">
-                      {summary?.health_score?.overall_score || 72}
-                    </span>
-                    <span className="text-lg font-bold text-mutedText">/ 100</span>
-                  </div>
-                  <p className="text-xs text-mutedText mt-1">
-                    Dynamic composite index across diversification, provenance confidence, liquidity, purity, and purchase readiness.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => setShowHealthScoreInfo(!showHealthScoreInfo)}
-                  className="text-xs text-gold hover:text-gold-light font-bold flex items-center gap-1 focus:outline-none bg-gold/10 hover:bg-gold/20 px-3.5 py-2 rounded-lg border border-gold/20 transition shrink-0"
-                >
-                  Why is my score this way?
-                  {showHealthScoreInfo ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
-              </div>
-
-              {/* 5 Component Bars */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
-                <div className="bg-background/60 border border-border p-3.5 rounded-xl space-y-2">
-                  <div className="flex justify-between items-center text-xs font-bold">
-                    <span className="text-mutedText uppercase text-[10px]">1. Diversification</span>
-                    <span className="text-white font-mono">{summary?.health_score?.components?.diversification || 48}/100</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-400 rounded-full" style={{ width: `${summary?.health_score?.components?.diversification || 48}%` }}></div>
-                  </div>
-                  <p className="text-[10px] text-mutedText line-clamp-2 leading-tight">Category concentration risk score</p>
-                </div>
-
-                <div className="bg-background/60 border border-border p-3.5 rounded-xl space-y-2">
-                  <div className="flex justify-between items-center text-xs font-bold">
-                    <span className="text-mutedText uppercase text-[10px]">2. Data Confidence</span>
-                    <span className="text-white font-mono">{summary?.health_score?.components?.data_confidence || 64}/100</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-400 rounded-full" style={{ width: `${summary?.health_score?.components?.data_confidence || 64}%` }}></div>
-                  </div>
-                  <p className="text-[10px] text-mutedText line-clamp-2 leading-tight">Invoice documentation verified %</p>
-                </div>
-
-                <div className="bg-background/60 border border-border p-3.5 rounded-xl space-y-2">
-                  <div className="flex justify-between items-center text-xs font-bold">
-                    <span className="text-mutedText uppercase text-[10px]">3. Liquidity</span>
-                    <span className="text-white font-mono">{summary?.health_score?.components?.liquidity || 82}/100</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${summary?.health_score?.components?.liquidity || 82}%` }}></div>
-                  </div>
-                  <p className="text-[10px] text-mutedText line-clamp-2 leading-tight">Recoverable melt value ratio</p>
-                </div>
-
-                <div className="bg-background/60 border border-border p-3.5 rounded-xl space-y-2">
-                  <div className="flex justify-between items-center text-xs font-bold">
-                    <span className="text-mutedText uppercase text-[10px]">4. Purity</span>
-                    <span className="text-white font-mono">{summary?.health_score?.components?.purity || 90}/100</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                    <div className="h-full bg-gold rounded-full" style={{ width: `${summary?.health_score?.components?.purity || 90}%` }}></div>
-                  </div>
-                  <p className="text-[10px] text-mutedText line-clamp-2 leading-tight">High-karat gold content index</p>
-                </div>
-
-                <div className="bg-background/60 border border-border p-3.5 rounded-xl space-y-2">
-                  <div className="flex justify-between items-center text-xs font-bold">
-                    <span className="text-mutedText uppercase text-[10px]">5. Purchase Readiness</span>
-                    <span className="text-white font-mono">{summary?.health_score?.components?.purchase_readiness || 76}/100</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-400 rounded-full" style={{ width: `${summary?.health_score?.components?.purchase_readiness || 76}%` }}></div>
-                  </div>
-                  <p className="text-[10px] text-mutedText line-clamp-2 leading-tight">Goal planning & feasibility status</p>
-                </div>
-              </div>
-
-              {/* Expandable Why is my score this way */}
-              {showHealthScoreInfo && (
-                <div className="bg-background border border-border p-5 rounded-xl space-y-4 animate-fadeIn">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-gold-light">Score Component Breakdown</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                    <div className="bg-card border border-border p-3.5 rounded-lg space-y-1.5">
-                      <div className="flex justify-between font-bold">
-                        <span className="text-white">Diversification: {summary?.health_score?.components?.diversification || 48}/100</span>
-                        <span className="text-amber-400 text-[10px]">Weight: 25%</span>
-                      </div>
-                      <p className="text-mutedText text-[11px] leading-relaxed">
-                        {summary?.health_score?.explanations?.diversification || "High category concentration reduces diversification score. Adding missing categories (e.g. bracelet or earrings) improves this score."}
-                      </p>
-                    </div>
-
-                    <div className="bg-card border border-border p-3.5 rounded-lg space-y-1.5">
-                      <div className="flex justify-between font-bold">
-                        <span className="text-white">Data Confidence: {summary?.health_score?.components?.data_confidence || 64}/100</span>
-                        <span className="text-blue-400 text-[10px]">Weight: 20%</span>
-                      </div>
-                      <p className="text-mutedText text-[11px] leading-relaxed">
-                        {summary?.health_score?.explanations?.data_confidence || "Score reflects the proportion of items with verified tax invoices vs self-reported or AI-estimated records."}
-                      </p>
-                    </div>
-
-                    <div className="bg-card border border-border p-3.5 rounded-lg space-y-1.5">
-                      <div className="flex justify-between font-bold">
-                        <span className="text-white">Liquidity: {summary?.health_score?.components?.liquidity || 82}/100</span>
-                        <span className="text-emerald-400 text-[10px]">Weight: 20%</span>
-                      </div>
-                      <p className="text-mutedText text-[11px] leading-relaxed">
-                        {summary?.health_score?.explanations?.liquidity || "Based on expected scrap recovery (98% standard recovery value) relative to current spot value."}
-                      </p>
-                    </div>
-
-                    <div className="bg-card border border-border p-3.5 rounded-lg space-y-1.5">
-                      <div className="flex justify-between font-bold">
-                        <span className="text-white">Purity Quality: {summary?.health_score?.components?.purity || 90}/100</span>
-                        <span className="text-gold text-[10px]">Weight: 20%</span>
-                      </div>
-                      <p className="text-mutedText text-[11px] leading-relaxed">
-                        {summary?.health_score?.explanations?.purity || "Reflects the high concentration of 22K (91.67% pure gold) holdings in your portfolio."}
-                      </p>
-                    </div>
-
-                    <div className="bg-card border border-border p-3.5 rounded-lg space-y-1.5 md:col-span-2">
-                      <div className="flex justify-between font-bold">
-                        <span className="text-white">Purchase Readiness: {summary?.health_score?.components?.purchase_readiness || 76}/100</span>
-                        <span className="text-indigo-400 text-[10px]">Weight: 15%</span>
-                      </div>
-                      <p className="text-mutedText text-[11px] leading-relaxed">
-                        {summary?.health_score?.explanations?.purchase_readiness || "Evaluates whether upcoming jewellery purchases have actionable funding strategies (buy new, exchange, or monthly savings)."}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* SECTION 3 — Current Gold Market */}
+          {/* Current Gold Market */}
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="px-4 sm:px-6 py-3 border-b border-border bg-background flex flex-wrap justify-between items-center gap-2">
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">Current Gold Market</h3>
@@ -825,6 +641,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
             )}
           </div>
 
+          {/* Portfolio Concentration Status */}
+          <div className={`p-4 rounded-xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-3 ${
+            isOverConcentrated 
+              ? "border-amber-500/20 bg-amber-500/5 text-amber-300"
+              : "border-emerald-500/20 bg-emerald-500/5 text-emerald-300"
+          }`}>
+            <div>
+              <span className="text-[10px] uppercase font-bold tracking-wider block text-mutedText">Portfolio Concentration Status</span>
+              <span className="text-lg font-black">{isOverConcentrated ? "Moderate Concentration" : "Balanced / Low Concentration"}</span>
+            </div>
+            <p className="text-xs leading-relaxed max-w-2xl">
+              {isOverConcentrated 
+                ? `${maxCatPct}% of your tracked gold weight is concentrated in ${maxCatName.toLowerCase()}s. A different category reduces this concentration risk.`
+                : "Your portfolio weight is evenly balanced. Category and style diversity scores look healthy."
+              }
+            </p>
+          </div>
+
           {/* SECTION 4 — Your Next Best Decision */}
           <div className="rounded-xl border border-gold/40 bg-gradient-to-r from-gold/10 via-card to-background p-6 space-y-6">
             {(() => {
@@ -854,25 +688,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
                       <h3 className="text-xl font-black text-white">{decisionHeading}</h3>
                     </div>
                     <div className="flex gap-2 self-end md:self-center">
-                      <button
-                        onClick={() => {
-                          if (selectedRec) {
-                            setSimCategory(selectedRec.category.toLowerCase());
-                            setSimWeight(selectedRec.simulated_weight || 10);
-                          }
-                          setShowSimulator(!showSimulator);
-                        }}
-                        className="rounded border border-gold hover:border-gold-light px-4 py-2 text-xs font-bold text-gold hover:text-gold-light transition shrink-0"
-                      >
-                        {showSimulator ? "Close Simulator" : `Simulate ${recommendedCategory}`}
-                      </button>
                       {onPlanPurchase && selectedRec && (
                         <div className="flex gap-2">
                           <button
                             onClick={() => {
                               handleOpenTryOn({
-                                category: showSimulator ? simCategory : selectedRec.category,
-                                purity: showSimulator ? simPurity : "22K",
+                                category: selectedRec.category,
+                                purity: "22K",
                                 style: "contemporary",
                                 colour: "yellow",
                                 image: null
@@ -885,9 +707,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
                           </button>
                           <button
                             onClick={() => {
-                              const cat = showSimulator ? simCategory : selectedRec.category;
-                              const wt = showSimulator ? simWeight : (selectedRec.simulated_weight || 10);
-                              const pur = showSimulator ? simPurity : "22K";
+                              const cat = selectedRec.category;
+                              const wt = selectedRec.simulated_weight || 10;
+                              const pur = "22K";
                               onPlanPurchase({
                                 category: cat,
                                 style: "Contemporary",
@@ -1022,165 +844,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
             })()}
           </div>
 
-          {/* SECTION 5 — What If I Buy...? (What-If Purchase Simulator) */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden p-6 space-y-5">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-border pb-3">
-              <div>
-                <h3 className="text-sm font-extrabold uppercase tracking-wider text-white flex items-center gap-2">
-                  <Calculator className="h-4 w-4 text-gold" />
-                  What If I Buy...? — Purchase Simulator
-                </h3>
-                <p className="text-xs text-mutedText mt-0.5">Test real-time diversification impact and health score adjustments before acquiring new gold</p>
-              </div>
-              <span className="text-[10px] font-bold text-gold uppercase px-2.5 py-1 rounded bg-gold/10 border border-gold/20">
-                Interactive Decision Sandbox
-              </span>
-            </div>
-
-            {/* Inputs Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="text-[10px] text-mutedText uppercase font-bold block mb-1.5">Category</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {["bracelet", "earrings", "ring", "bangle", "pendant", "necklace"].map(cat => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setSimCategory(cat)}
-                      className={`capitalize py-2 text-xs font-bold rounded-lg border transition ${
-                        simCategory === cat 
-                          ? "bg-gold text-background border-gold shadow-md" 
-                          : "bg-background border-border text-mutedText hover:text-white hover:border-border/80"
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] text-mutedText uppercase font-bold block mb-1.5">Weight (grams)</label>
-                <div className="grid grid-cols-4 gap-1.5 mb-2">
-                  {[5, 10, 15, 20].map(w => (
-                    <button
-                      key={w}
-                      type="button"
-                      onClick={() => setSimWeight(w)}
-                      className={`py-2 text-xs font-bold rounded-lg border font-mono transition ${
-                        simWeight === w 
-                          ? "bg-gold text-background border-gold shadow-md" 
-                          : "bg-background border-border text-mutedText hover:text-white"
-                      }`}
-                    >
-                      {w}g
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    min="1"
-                    max="500"
-                    value={simWeight}
-                    onChange={(e) => setSimWeight(Math.max(1, Number(e.target.value)))}
-                    className="w-full bg-background border border-border focus:border-gold rounded-lg p-2 text-xs text-white font-mono focus:outline-none"
-                  />
-                  <span className="text-xs text-mutedText font-semibold">g</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] text-mutedText uppercase font-bold block mb-1.5">Purity</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {["24K", "22K", "18K"].map(p => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setSimPurity(p)}
-                      className={`py-2 text-xs font-bold rounded-lg border font-mono transition ${
-                        simPurity === p 
-                          ? "bg-gold text-background border-gold shadow-md" 
-                          : "bg-background border-border text-mutedText hover:text-white"
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-2 bg-background/50 p-2 rounded text-[10px] text-mutedText border border-border/40">
-                  Rate: {currency} {(simPurity === "24K" ? goldRate24K : (simPurity === "18K" ? goldRate18K : goldRate22K)).toFixed(2)}/g
-                </div>
-              </div>
-            </div>
-
-            {/* Before vs After Impact Box */}
-            {(() => {
-              const simPurityRatio = simPurity === "24K" ? 0.999 : (simPurity === "18K" ? 0.75 : 0.9167);
-              const simGoldVal = simWeight * simPurityRatio * latestRate;
-              const projectedTotalVal = (summary?.estimated_current_value || 0) + simGoldVal;
-              const maxConcentrationBefore = maxCatPct;
-              const maxConcentrationAfter = Math.round(projectedHighestPct * 100);
-              const isConcentrationReduced = maxConcentrationAfter < maxConcentrationBefore;
-
-              return (
-                <div className="bg-background border border-border rounded-xl p-5 space-y-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                    <span className="text-xs font-extrabold uppercase tracking-wider text-white">Simulation Impact Analysis</span>
-                    <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
-                      isConcentrationReduced
-                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                        : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                    }`}>
-                      {isConcentrationReduced 
-                        ? `✓ ${maxCatName} Concentration: ${maxConcentrationBefore}% → ${maxConcentrationAfter}% (Improves Diversification)`
-                        : `⚠️ ${maxCatName} Concentration: ${maxConcentrationBefore}% → ${maxConcentrationAfter}% (Increases Concentration Risk)`
-                      }
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-                    <div className="bg-card p-3 rounded-lg border border-border/60">
-                      <span className="text-[10px] text-mutedText uppercase block">Total Gross Weight</span>
-                      <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-white font-mono">{grossTotal.toFixed(1)}g</span>
-                        <span className="text-gold font-bold font-mono">→ {newGrossTotal.toFixed(1)}g</span>
-                      </div>
-                    </div>
-
-                    <div className="bg-card p-3 rounded-lg border border-border/60">
-                      <span className="text-[10px] text-mutedText uppercase block">Primary Category Share</span>
-                      <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-white font-mono">{maxConcentrationBefore}%</span>
-                        <span className={`font-bold font-mono ${isConcentrationReduced ? "text-emerald-400" : "text-amber-400"}`}>
-                          → {maxConcentrationAfter}%
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="bg-card p-3 rounded-lg border border-border/60">
-                      <span className="text-[10px] text-mutedText uppercase block">{simCategory.toUpperCase()} Share</span>
-                      <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-white font-mono">{grossTotal > 0 ? Math.round(((currentCategoryWeights[simCategory] || 0) / grossTotal) * 100) : 0}%</span>
-                        <span className="text-gold font-bold font-mono">→ {Math.round(((projectedCategoryWeights[simCategory] || 0) / newGrossTotal) * 100)}%</span>
-                      </div>
-                    </div>
-
-                    <div className="bg-card p-3 rounded-lg border border-border/60">
-                      <span className="text-[10px] text-mutedText uppercase block">Projected Gold Value</span>
-                      <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-gold font-bold font-mono text-sm">
-                          {currency} {projectedTotalVal.toLocaleString(undefined, {maximumFractionDigits: 0})}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* SECTION 6 — Portfolio Intelligence */}
+          {/* Portfolio Intelligence */}
           <div className="rounded-xl border border-border bg-card overflow-hidden p-6 space-y-6">
             <div className="border-b border-border pb-3">
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">Portfolio Intelligence</h3>
@@ -1253,24 +917,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ currency, refreshTrigger, 
                   Based on invoice verification, completeness, and price accuracy.
                 </p>
               </div>
-            </div>
-
-            {/* Portfolio Concentration Risk Card */}
-            <div className={`p-4 rounded-xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-3 ${
-              isOverConcentrated 
-                ? "border-amber-500/20 bg-amber-500/5 text-amber-300"
-                : "border-emerald-500/20 bg-emerald-500/5 text-emerald-300"
-            }`}>
-              <div>
-                <span className="text-[10px] uppercase font-bold tracking-wider block text-mutedText">Portfolio Concentration Status</span>
-                <span className="text-lg font-black">{isOverConcentrated ? "Moderate Concentration" : "Balanced / Low Concentration"}</span>
-              </div>
-              <p className="text-xs leading-relaxed max-w-2xl">
-                {isOverConcentrated 
-                  ? `${maxCatPct}% of your tracked gold weight is concentrated in ${maxCatName.toLowerCase()}s. A different category reduces this concentration risk.`
-                  : "Your portfolio weight is evenly balanced. Category and style diversity scores look healthy."
-                }
-              </p>
             </div>
           </div>
 

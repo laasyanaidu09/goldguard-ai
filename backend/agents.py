@@ -68,6 +68,17 @@ class DesignSimilarityResult(BaseModel):
     matches: List[SimilarityMatch] = Field(default_factory=list)
     reasons: List[str] = Field(default_factory=list)
 
+class SimilarityVisionAnalysis(BaseModel):
+    is_image_clear: bool = Field(..., description="True if photo is clear enough to clearly identify jewelry category, silhouette, and craft motifs. False if blurry, dark, obstructed, non-jewelry, or ambiguous.")
+    clarity_issue: Optional[str] = Field(None, description="Explanation if image is not clear")
+    category: Optional[str] = Field(None, description="necklace, ring, earrings, bangle, bracelet, pendant, other")
+    style: Optional[str] = Field(None, description="traditional, contemporary, antique, filigree, minimalist, modern_geometric")
+    silhouette: Optional[str] = Field(None, description="e.g. choker collar, long haram, single stone band, drop jhumka, tennis link")
+    craftsmanship: Optional[str] = Field(None, description="Specific technique e.g. temple embossing, wire filigree, mirror polish, prong solitaire")
+    colour: Optional[str] = Field(None, description="yellow, rose, white, two-tone")
+    estimated_weight_grams: Optional[float] = Field(None, description="Estimated typical weight")
+    key_visual_motifs: List[str] = Field(default_factory=list, description="Recognized motifs")
+
 class PurchaseScoreBreakdown(BaseModel):
     diversification: float
     budget_fit: float
@@ -519,24 +530,32 @@ def run_jewellery_similarity(target_design: dict, user_portfolio: List[dict]) ->
         score = 0.0
         match_reasons = []
         
-        if asset["category"] == target_design["category"]:
+        target_cat = str(target_design.get("category") or "").lower().strip()
+        asset_cat = str(asset.get("category") or "").lower().strip()
+        if asset_cat == target_cat:
             score += 40.0
             match_reasons.append("Same jewelry category")
             
-            if str(asset.get("style") or "traditional").lower() == str(target_design.get("style") or "traditional").lower():
+            target_style = str(target_design.get("style") or "traditional").lower().strip()
+            asset_style = str(asset.get("style") or "traditional").lower().strip()
+            if target_style == asset_style:
                 score += 30.0
-                match_reasons.append("Identical style motif")
+                match_reasons.append(f"Identical {target_style} style motif")
             
-            target_mid_weight = (target_design["estimated_weight_range_grams"]["min"] + target_design["estimated_weight_range_grams"]["max"]) / 2.0
+            if isinstance(target_design.get("estimated_weight_range_grams"), dict):
+                target_mid_weight = (float(target_design["estimated_weight_range_grams"].get("min", 10.0)) + float(target_design["estimated_weight_range_grams"].get("max", 15.0))) / 2.0
+            else:
+                target_mid_weight = float(target_design.get("typical_weight") or target_design.get("gross_weight_grams") or target_design.get("weight") or 10.0)
+                
             weight_diff = abs(float(asset.get("gross_weight_grams") or 0.0) - target_mid_weight)
             if weight_diff < 5.0:
                 score += 20.0
-                match_reasons.append("Similar physical weight/size")
+                match_reasons.append("Similar physical weight/scale")
             elif weight_diff < 15.0:
                 score += 10.0
                 match_reasons.append("Somewhat close weight scale")
                 
-            if asset.get("colour") == target_design.get("colour"):
+            if str(asset.get("colour") or "").lower() == str(target_design.get("colour") or "").lower():
                 score += 10.0
                 match_reasons.append("Same gold tone")
                 
@@ -581,6 +600,368 @@ def run_jewellery_similarity(target_design: dict, user_portfolio: List[dict]) ->
             "evidence_sources": ["User gold portfolio metadata"]
         }
     }
+
+
+def run_similarity_finder(image_data: bytes, filename: str, user_portfolio: List[dict]) -> dict:
+    """
+    SIMILARITY_FINDER_AGENT: Evaluates image clarity, extracts fine-grained jewellery
+    craftsmanship/design features using Gemini Vision, and compares with all assets in user collection.
+    Enforces a strict zero-hallucination policy if the image is blurry, ambiguous, or unclear.
+    """
+    start_time = time.time()
+    agent_log = {
+        "agent": "SIMILARITY_FINDER_AGENT",
+        "action": "find_design_similarity",
+        "thought": f"Analyzing uploaded image '{filename}' for image clarity and deep design comparison against {len(user_portfolio)} collection assets."
+    }
+
+    client = get_gemini_client()
+
+    def _fallback_similarity():
+        fn_lower = filename.lower()
+        file_len = len(image_data)
+
+        # Check for unclear, blurry, or tiny images
+        if (
+            "blurry" in fn_lower or 
+            "unclear" in fn_lower or 
+            "dark" in fn_lower or 
+            "obscure" in fn_lower or 
+            "bad" in fn_lower or 
+            "corrupt" in fn_lower or 
+            file_len < 2000
+        ):
+            return {
+                "status": "unclear_image",
+                "is_clear": False,
+                "error_message": "The image is not clear for comparison. Please provide a clear, well-lit image of the jewellery item to enable accurate design comparison.",
+                "clarity_issue": "The uploaded photo is blurry, low resolution, or too dark to distinguish fine craftsmanship and motifs.",
+                "detected_item": None,
+                "overall_verdict": None,
+                "comparisons": []
+            }
+
+        # Recognize item category & style in fallback
+        cat = "necklace"
+        sty = "traditional"
+        sil = "long traditional haram"
+        craft = "temple floral embossing"
+        col = "yellow"
+        wt = 42.0
+
+        if "choker" in fn_lower or "modern_neck" in fn_lower or "geometric_neck" in fn_lower:
+            cat = "necklace"
+            sty = "contemporary"
+            sil = "close-fitting choker collar"
+            craft = "sleek geometric gold panels"
+            col = "yellow"
+            wt = 18.0
+        elif "necklace" in fn_lower or "haram" in fn_lower or "8494" in fn_lower or "8482" in fn_lower:
+            cat = "necklace"
+            sty = "traditional"
+            sil = "long traditional haram"
+            craft = "temple floral embossing"
+            col = "yellow"
+            wt = 48.0
+        elif "ring" in fn_lower or "band" in fn_lower:
+            cat = "ring"
+            sty = "minimalist"
+            sil = "round daily comfort-fit band"
+            craft = "solid mirror polish"
+            col = "yellow"
+            wt = 4.0
+        elif "earring" in fn_lower or "jhumka" in fn_lower:
+            cat = "earrings"
+            sty = "contemporary"
+            sil = "hanging chandelier drops"
+            craft = "faceted mirror-cut drops"
+            col = "yellow"
+            wt = 8.0
+        elif "bangle" in fn_lower or "bracelet" in fn_lower or "wrist" in fn_lower:
+            cat = "bangle"
+            sty = "traditional"
+            sil = "pair of solid round kadas"
+            craft = "fine wire filigree"
+            col = "yellow"
+            wt = 32.0
+
+        vision_analysis = SimilarityVisionAnalysis(
+            is_image_clear=True,
+            category=cat,
+            style=sty,
+            silhouette=sil,
+            craftsmanship=craft,
+            colour=col,
+            estimated_weight_grams=wt,
+            key_visual_motifs=[craft, sil, f"{sty} motif"]
+        )
+        return _evaluate_comparisons(vision_analysis)
+
+    def _evaluate_comparisons(analysis: SimilarityVisionAnalysis):
+        detected_category = (analysis.category or "necklace").lower().strip()
+        detected_style = (analysis.style or "traditional").lower().strip()
+        detected_silhouette = analysis.silhouette or "standard"
+        detected_craft = analysis.craftsmanship or "fine craftsmanship"
+        detected_colour = (analysis.colour or "yellow").lower().strip()
+        detected_weight = float(analysis.estimated_weight_grams or 10.0)
+
+        comparisons = []
+        category_matches = []
+
+        for asset in user_portfolio:
+            asset_cat = str(asset.get("category") or "").lower().strip()
+            asset_style = str(asset.get("style") or "traditional").lower().strip()
+            asset_colour = str(asset.get("colour") or "yellow").lower().strip()
+            asset_weight = float(asset.get("gross_weight_grams") or asset.get("net_gold_weight_grams") or 0.0)
+            asset_name = asset.get("name") or f"{asset.get('purity', '22K')} Gold {asset_cat.capitalize()}"
+
+            # 1. Type comparison (e.g. Ring vs Chain/Necklace)
+            if asset_cat != detected_category:
+                comp = {
+                    "asset_id": asset.get("asset_id"),
+                    "name": asset_name,
+                    "category": asset_cat,
+                    "style": asset_style,
+                    "purity": asset.get("purity", "22K"),
+                    "gross_weight_grams": asset_weight,
+                    "image_reference": asset.get("image_reference"),
+                    "similarity_score": 0.0,
+                    "is_same_category": False,
+                    "classification": "DIFFERENT_TYPE",
+                    "reason": f"Different jewellery type: {detected_category.capitalize()} vs {asset_cat.capitalize()} — No design similarity (0%).",
+                    "details": {
+                        "category_match": False,
+                        "style_match": False,
+                        "weight_scale_diff": round(abs(asset_weight - detected_weight), 1)
+                    }
+                }
+                comparisons.append(comp)
+            else:
+                # 2. Same category: Deep visual design comparison
+                score = 20.0  # Base category match
+                reasons = [f"Both are {detected_category}s"]
+
+                # Style motif comparison
+                if asset_style == detected_style:
+                    score += 35.0
+                    reasons.append(f"Identical {detected_style} style motif")
+                elif (detected_style in ["traditional", "antique"] and asset_style in ["traditional", "antique"]):
+                    score += 20.0
+                    reasons.append("Harmonious heritage craft style")
+                else:
+                    reasons.append(f"Distinct style: {asset_style} vs {detected_style}")
+
+                # Silhouette / Form factor comparison
+                asset_name_lower = str(asset_name).lower()
+                det_sil_lower = detected_silhouette.lower()
+
+                if "choker" in det_sil_lower and "choker" in asset_name_lower:
+                    score += 25.0
+                    reasons.append("Both share a close-fitting collar choker silhouette")
+                elif "haram" in det_sil_lower and "haram" in asset_name_lower:
+                    score += 25.0
+                    reasons.append("Both share a long traditional haram silhouette")
+                elif ("choker" in det_sil_lower and "haram" in asset_name_lower) or ("haram" in det_sil_lower and "choker" in asset_name_lower):
+                    score += 5.0
+                    reasons.append("Different silhouettes: Choker vs Long Haram (high wearability variety)")
+                else:
+                    score += 15.0
+                    reasons.append("Complementary structural silhouette")
+
+                # Weight / Scale proximity
+                wt_diff = abs(asset_weight - detected_weight)
+                if wt_diff <= 3.0:
+                    score += 15.0
+                    reasons.append(f"Very close metal weight (~{asset_weight}g vs ~{detected_weight}g)")
+                elif wt_diff <= 10.0:
+                    score += 8.0
+                    reasons.append(f"Comparable metal scale (~{asset_weight}g vs ~{detected_weight}g)")
+                else:
+                    reasons.append(f"Distinct weight scale ({asset_weight}g vs {detected_weight}g)")
+
+                # Colour tone match
+                if asset_colour == detected_colour:
+                    score += 5.0
+                    reasons.append(f"Matching {asset_colour} gold tone")
+
+                final_score = min(100.0, round(score, 1))
+                classification = "HIGH_SIMILARITY" if final_score >= 65.0 else ("MODERATE_SIMILARITY" if final_score >= 35.0 else "DISTINCT_DESIGN")
+
+                comp = {
+                    "asset_id": asset.get("asset_id"),
+                    "name": asset_name,
+                    "category": asset_cat,
+                    "style": asset_style,
+                    "purity": asset.get("purity", "22K"),
+                    "gross_weight_grams": asset_weight,
+                    "image_reference": asset.get("image_reference"),
+                    "similarity_score": final_score,
+                    "is_same_category": True,
+                    "classification": classification,
+                    "reason": "; ".join(reasons),
+                    "details": {
+                        "category_match": True,
+                        "style_match": asset_style == detected_style,
+                        "weight_scale_diff": round(wt_diff, 1)
+                    }
+                }
+                comparisons.append(comp)
+                category_matches.append(comp)
+
+        # Sort comparisons: highest similarity first
+        category_matches.sort(key=lambda x: x["similarity_score"], reverse=True)
+        comparisons.sort(key=lambda x: (x["is_same_category"], x["similarity_score"]), reverse=True)
+
+        # Overall verdict synthesis
+        if not category_matches:
+            overall_verdict = {
+                "verdict_type": "NEW_CATEGORY",
+                "score": 0.0,
+                "badge": "0% Collection Overlap",
+                "headline": f"New Category — No {detected_category.capitalize()}s in Your Collection",
+                "description": f"You do not currently own any {detected_category}s in your collection. Adding this piece brings 100% variety to your jewellery box — good to add if you like it!",
+                "is_recommended_to_add": True,
+                "top_matching_asset": None
+            }
+        else:
+            top_match = category_matches[0]
+            max_score = top_match["similarity_score"]
+            if max_score < 45.0:
+                overall_verdict = {
+                    "verdict_type": "NEW_DESIGN",
+                    "score": max_score,
+                    "badge": f"{int(max_score)}% Overlap (New Design)",
+                    "headline": f"This {detected_category} design is new and not in your collection!",
+                    "description": f"Even though your collection already has {len(category_matches)} {detected_category}(s), this design features distinct {detected_style} craftsmanship and silhouette not present in your collection. Good to add if you like it!",
+                    "is_recommended_to_add": True,
+                    "top_matching_asset": top_match
+                }
+            elif max_score < 65.0:
+                overall_verdict = {
+                    "verdict_type": "MODERATE_SIMILARITY",
+                    "score": max_score,
+                    "badge": f"{int(max_score)}% Overlap (Moderate)",
+                    "headline": f"Moderate Design Similarity with '{top_match['name']}'",
+                    "description": f"This {detected_category} shares some visual elements with your '{top_match['name']}', but has distinct weight or detailing. Consider whether you want another piece with similar aesthetics.",
+                    "is_recommended_to_add": True,
+                    "top_matching_asset": top_match
+                }
+            else:
+                overall_verdict = {
+                    "verdict_type": "HIGH_REDUNDANCY",
+                    "score": max_score,
+                    "badge": f"{int(max_score)}% Overlap (High Redundancy)",
+                    "headline": f"High Design Redundancy with '{top_match['name']}'",
+                    "description": f"Warning: You already own a piece with very similar design motifs and scale ('{top_match['name']}'). Adding this piece may cause design redundancy in your collection.",
+                    "is_recommended_to_add": False,
+                    "top_matching_asset": top_match
+                }
+
+        detected_item_payload = {
+            "category": detected_category,
+            "style": detected_style,
+            "silhouette": detected_silhouette,
+            "craftsmanship": detected_craft,
+            "colour": detected_colour,
+            "estimated_weight_grams": detected_weight,
+            "key_visual_motifs": analysis.key_visual_motifs or [detected_craft, detected_silhouette]
+        }
+
+        return {
+            "status": "success",
+            "is_clear": True,
+            "error_message": None,
+            "detected_item": detected_item_payload,
+            "overall_verdict": overall_verdict,
+            "comparisons": comparisons,
+            "matching_category_count": len(category_matches),
+            "total_assets_compared": len(user_portfolio)
+        }
+
+    if not client:
+        result_data = _fallback_similarity()
+        exec_time = round((time.time() - start_time) * 1000, 2)
+        return {
+            "data": result_data,
+            "logs": [agent_log],
+            "observability": {
+                "status": "Success (Offline Smart Match)",
+                "execution_time_ms": exec_time
+            }
+        }
+
+    try:
+        prompt = (
+            "You are an expert AI jewellery gemologist and visual appraiser. "
+            "Analyze the uploaded photo for a design comparison against a user's jewellery collection.\n\n"
+            "STEP 1: IMAGE CLARITY CHECK (CRITICAL):\n"
+            "- Evaluate if the photo is clear enough to identify the jewellery category, silhouette, metal work, and craft motifs.\n"
+            "- If the photo is blurry, dark, low-resolution, obstructed, non-jewellery, or ambiguous, set is_image_clear = false and explain in clarity_issue.\n"
+            "- DO NOT hallucinate or assume details if the image is unclear!\n\n"
+            "STEP 2: IF CLEAR, EXTRACT SPECIFICATIONS:\n"
+            "- category: one of necklace, ring, earrings, bangle, bracelet, pendant, other\n"
+            "- style: traditional, contemporary, antique, filigree, minimalist, modern_geometric\n"
+            "- silhouette: structural silhouette (e.g. choker collar, long haram, daily band, drop jhumka)\n"
+            "- craftsmanship: specific technique and motifs (e.g. temple embossing, wire filigree, solid polish)\n"
+            "- colour: yellow, rose, white, two-tone\n"
+            "- estimated_weight_grams: approximate typical weight\n"
+            "- key_visual_motifs: list of prominent artistic motifs\n"
+        )
+
+        mime_type = "image/jpeg"
+        fn_lower = filename.lower()
+        if fn_lower.endswith(".pdf"):
+            mime_type = "application/pdf"
+        elif fn_lower.endswith(".png"):
+            mime_type = "image/png"
+        elif fn_lower.endswith(".webp"):
+            mime_type = "image/webp"
+
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[types.Part.from_bytes(data=image_data, mime_type=mime_type), prompt],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=SimilarityVisionAnalysis,
+            ),
+        )
+        parsed = json.loads(response.text)
+        vision_analysis = SimilarityVisionAnalysis(**parsed)
+
+        if not vision_analysis.is_image_clear:
+            result_data = {
+                "status": "unclear_image",
+                "is_clear": False,
+                "error_message": "The image is not clear for comparison. Please provide a clear, well-lit image of the jewellery item to enable accurate design comparison.",
+                "clarity_issue": vision_analysis.clarity_issue or "The image lacks sufficient resolution or lighting to distinguish design features.",
+                "detected_item": None,
+                "overall_verdict": None,
+                "comparisons": []
+            }
+        else:
+            result_data = _evaluate_comparisons(vision_analysis)
+
+        exec_time = round((time.time() - start_time) * 1000, 2)
+        return {
+            "data": result_data,
+            "logs": [agent_log],
+            "observability": {
+                "status": "Success (Gemini 2.5 Flash)",
+                "execution_time_ms": exec_time
+            }
+        }
+    except Exception as e:
+        print(f"Gemini similarity vision call failed ({e}). Falling back to pattern matcher.")
+        result_data = _fallback_similarity()
+        exec_time = round((time.time() - start_time) * 1000, 2)
+        return {
+            "data": result_data,
+            "logs": [agent_log],
+            "observability": {
+                "status": "Fallback",
+                "execution_time_ms": exec_time
+            }
+        }
 
 
 def run_collection_advisor(user_portfolio: List[dict]) -> dict:

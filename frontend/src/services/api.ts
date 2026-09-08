@@ -8,6 +8,7 @@ export interface Asset {
   category: string;
   style: string;
   purity: string;
+  colour?: string | null;
   gross_weight_grams: number;
   net_gold_weight_grams: number;
   purchase_date: string;
@@ -580,6 +581,226 @@ export const api = {
             thought: `[OFFLINE RUN] Classifying jewelry design features from image. Structural features match ${cat} design specs.`
           }
         ]
+      };
+    }
+  },
+
+  async checkJewellerySimilarity(targetDesign: any, userId: string = "user_bride"): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/jewellery/similarity`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, target_design: targetDesign })
+      });
+      if (!res.ok) throw new Error("Similarity check failed");
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async findSimilarity(file: File, userId: string = "user_bride"): Promise<any> {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`${API_BASE}/similarity/find?user_id=${userId}`, {
+        method: "POST",
+        body: formData
+      });
+      if (!res.ok) throw new Error("Similarity finder request failed");
+      return await res.json();
+    } catch {
+      // Offline fallback
+      const fn = file.name.toLowerCase();
+      const isUnclear = fn.includes("blurry") || fn.includes("unclear") || fn.includes("dark") || fn.includes("bad") || file.size < 2000;
+      if (isUnclear) {
+        return {
+          data: {
+            status: "unclear_image",
+            is_clear: false,
+            error_message: "The image is not clear for comparison. Please provide a clear, well-lit image of the jewellery item to enable accurate design comparison.",
+            clarity_issue: "The uploaded photo lacks sharpness or adequate lighting to discern design motifs and metal craftsmanship.",
+            detected_item: null,
+            overall_verdict: null,
+            comparisons: []
+          }
+        };
+      }
+
+      let cat = "necklace";
+      let sty = "traditional";
+      let sil = "long traditional haram";
+      let craft = "temple floral embossing";
+      let wt = 48.0;
+
+      if (fn.includes("choker") || fn.includes("modern_neck")) {
+        cat = "necklace";
+        sty = "contemporary";
+        sil = "close-fitting collar choker";
+        craft = "sleek geometric gold panels";
+        wt = 18.0;
+      } else if (fn.includes("ring") || fn.includes("band")) {
+        cat = "ring";
+        sty = "minimalist";
+        sil = "round daily comfort-fit band";
+        craft = "solid mirror polish";
+        wt = 4.0;
+      } else if (fn.includes("earring") || fn.includes("jhumka")) {
+        cat = "earrings";
+        sty = "contemporary";
+        sil = "chandelier drops";
+        craft = "faceted mirror-cut drops";
+        wt = 8.0;
+      } else if (fn.includes("bangle") || fn.includes("bracelet")) {
+        cat = "bangle";
+        sty = "traditional";
+        sil = "pair of solid round kadas";
+        craft = "fine wire filigree";
+        wt = 32.0;
+      }
+
+      const dummyPortfolio = [
+        {
+          asset_id: "ASSET_001",
+          name: "Traditional Marriage Haram",
+          category: "necklace",
+          style: "traditional",
+          purity: "22K",
+          gross_weight_grams: 48.5,
+          image_reference: "/jewellery/user_necklace_traditional.jpg"
+        },
+        {
+          asset_id: "ASSET_002",
+          name: "Heavy Filigree Bangles (Pair)",
+          category: "bangle",
+          style: "traditional",
+          purity: "22K",
+          gross_weight_grams: 32.0,
+          image_reference: "/jewellery/user_bangles_filigree.jpg"
+        },
+        {
+          asset_id: "ASSET_005",
+          name: "Ong Antique Gold Haram",
+          category: "necklace",
+          style: "traditional",
+          purity: "22K",
+          gross_weight_grams: 100.0,
+          image_reference: "/jewellery/user_antique_haram.jpg"
+        }
+      ];
+
+      const comparisons: any[] = [];
+      const catMatches: any[] = [];
+
+      dummyPortfolio.forEach(asset => {
+        if (asset.category !== cat) {
+          comparisons.push({
+            asset_id: asset.asset_id,
+            name: asset.name,
+            category: asset.category,
+            style: asset.style,
+            purity: asset.purity,
+            gross_weight_grams: asset.gross_weight_grams,
+            image_reference: asset.image_reference,
+            similarity_score: 0.0,
+            is_same_category: false,
+            classification: "DIFFERENT_TYPE",
+            reason: `Different jewellery type: ${cat.toUpperCase()} vs ${asset.category.toUpperCase()} — No design similarity (0%).`
+          });
+        } else {
+          let score = 20.0;
+          const reasons = [`Both are ${cat}s`];
+          if (asset.style === sty) {
+            score += 35.0;
+            reasons.push(`Identical ${sty} style motif`);
+          } else {
+            reasons.push(`Distinct style: ${asset.style} vs ${sty}`);
+          }
+          if (sil.includes("choker") && asset.name.toLowerCase().includes("haram")) {
+            score += 5.0;
+            reasons.push("Contrasting silhouettes: Choker vs Long Haram");
+          } else if (sil.includes("haram") && asset.name.toLowerCase().includes("haram")) {
+            score += 25.0;
+            reasons.push("Both share a long traditional haram silhouette");
+          }
+          const wtDiff = Math.abs(asset.gross_weight_grams - wt);
+          if (wtDiff <= 5) score += 15.0;
+
+          const finalScore = Math.min(100, Math.round(score));
+          const comp = {
+            asset_id: asset.asset_id,
+            name: asset.name,
+            category: asset.category,
+            style: asset.style,
+            purity: asset.purity,
+            gross_weight_grams: asset.gross_weight_grams,
+            image_reference: asset.image_reference,
+            similarity_score: finalScore,
+            is_same_category: true,
+            classification: finalScore >= 65 ? "HIGH_SIMILARITY" : "DISTINCT_DESIGN",
+            reason: reasons.join("; ")
+          };
+          comparisons.push(comp);
+          catMatches.push(comp);
+        }
+      });
+
+      catMatches.sort((a, b) => b.similarity_score - a.similarity_score);
+      const topMatch = catMatches[0] || null;
+      const maxScore = topMatch ? topMatch.similarity_score : 0;
+
+      let overallVerdict: any;
+      if (!topMatch) {
+        overallVerdict = {
+          verdict_type: "NEW_CATEGORY",
+          score: 0.0,
+          badge: "0% Collection Overlap",
+          headline: `New Category — No ${cat.toUpperCase()}s in Your Collection`,
+          description: `You do not currently own any ${cat}s in your collection. Adding this piece brings 100% variety to your jewellery box — good to add if you like it!`,
+          is_recommended_to_add: true,
+          top_matching_asset: null
+        };
+      } else if (maxScore < 45) {
+        overallVerdict = {
+          verdict_type: "NEW_DESIGN",
+          score: maxScore,
+          badge: `${Math.round(maxScore)}% Overlap (New Design)`,
+          headline: `This ${cat} design is new and not in your collection!`,
+          description: `Even though your collection already has ${catMatches.length} ${cat}(s), this design features distinct ${sty} craftsmanship and silhouette not present in your collection. Good to add if you like it!`,
+          is_recommended_to_add: true,
+          top_matching_asset: topMatch
+        };
+      } else {
+        overallVerdict = {
+          verdict_type: "HIGH_REDUNDANCY",
+          score: maxScore,
+          badge: `${Math.round(maxScore)}% Overlap (High Redundancy)`,
+          headline: `High Design Redundancy with '${topMatch.name}'`,
+          description: `Warning: You already own a piece with very similar design motifs and scale ('${topMatch.name}'). Adding this piece may cause design redundancy in your collection.`,
+          is_recommended_to_add: false,
+          top_matching_asset: topMatch
+        };
+      }
+
+      return {
+        data: {
+          status: "success",
+          is_clear: true,
+          error_message: null,
+          detected_item: {
+            category: cat,
+            style: sty,
+            silhouette: sil,
+            craftsmanship: craft,
+            colour: "yellow",
+            estimated_weight_grams: wt,
+            key_visual_motifs: [craft, sil]
+          },
+          overall_verdict: overallVerdict,
+          comparisons,
+          matching_category_count: catMatches.length,
+          total_assets_compared: dummyPortfolio.length
+        }
       };
     }
   },

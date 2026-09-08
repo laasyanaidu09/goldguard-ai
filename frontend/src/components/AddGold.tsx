@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { api } from "../services/api";
 import { 
   FileText, FileUp, Sparkles, Plus, 
-  AlertTriangle, ShieldCheck, X, HelpCircle, RefreshCw, Check
+  AlertTriangle, ShieldCheck, X, HelpCircle, RefreshCw, Check,
+  Camera, Image as ImageIcon, Trash2
 } from "lucide-react";
 
 interface AddGoldProps {
@@ -11,11 +12,16 @@ interface AddGoldProps {
   currency: string;
 }
 
+const fieldBaseClass = "w-full h-[42px] bg-background border border-border focus:border-gold rounded-lg px-3 text-xs text-white focus:outline-none box-border leading-normal transition";
+const selectBaseClass = "w-full h-[42px] bg-background border border-border focus:border-gold rounded-lg px-3 text-xs text-white focus:outline-none box-border leading-normal cursor-pointer transition appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%239CA3AF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:9px_9px] bg-[right_12px_center] bg-no-repeat pr-8";
+
 export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, currency }) => {
   const [activeOption, setActiveOption] = useState<"invoice" | "image" | "manual">("invoice");
   const [loading, setLoading] = useState(false);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [jewelleryFile, setJewelleryFile] = useState<File | null>(null);
+  const [manualJewelleryFile, setManualJewelleryFile] = useState<File | null>(null);
+  const [manualPhotoPreview, setManualPhotoPreview] = useState<string | null>(null);
 
   // Unified Review State
   const [isReviewing, setIsReviewing] = useState(false);
@@ -93,6 +99,16 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
     try {
       const res = await api.analyzeJewellery(jewelleryFile);
       if (res && res.data) {
+        // Generate immediate data URL for uploaded jewellery photo
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const preview = ev.target?.result as string;
+          if (preview) {
+            setReviewData((prev: any) => prev ? { ...prev, image_reference: preview } : prev);
+          }
+        };
+        reader.readAsDataURL(jewelleryFile);
+
         setReviewData(res.data);
         setProvenance(res.provenance || {});
         setAuditWarnings(res.audit_warnings || []);
@@ -107,6 +123,19 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
       alert(`Error analyzing image: ${err?.message || err}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleManualPhotoChange = (file: File | null) => {
+    setManualJewelleryFile(file);
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setManualPhotoPreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setManualPhotoPreview(null);
     }
   };
 
@@ -138,8 +167,10 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
       let priceProv = "USER";
       let priceDate = manualForm.purchase_date;
       let histVal = null;
-      let method = null;
-      let confidence = null;
+      const hasInvoiceRef = Boolean(manualForm.invoice_number && manualForm.invoice_number.trim() !== "");
+      let method = hasInvoiceRef ? "Self-Reported (Invoice Ref Provided)" : "Self-Reported Manual Entry";
+      let confidence = hasInvoiceRef ? "High (Manual Invoice Ref)" : "High (Self-Reported)";
+      let priceSource = (hasEnteredPrice && manualForm.price_type !== "UNKNOWN") ? "USER_EXACT" : "HISTORICAL_GOLD_RATE";
 
       // Handle Unknown or Empty Price: auto-estimate from date gold rate
       if (price === null || manualForm.price_type === "UNKNOWN") {
@@ -156,6 +187,7 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
             priceProv = "AI_ESTIMATED";
             method = estRes.method || "Historical Gold Rate Estimation";
             confidence = estRes.confidence || "High (Date Grounded)";
+            priceSource = "HISTORICAL_GOLD_RATE";
           }
         } catch (e) {
           console.warn("Could not estimate historical price:", e);
@@ -180,7 +212,9 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
         stone_charges: Number(manualForm.stone_charges) || 0.0,
         historical_gold_value: histVal,
         estimation_confidence: confidence,
-        estimation_method: method
+        estimation_method: method,
+        purchase_price_source: priceSource,
+        image_reference: manualPhotoPreview || null
       };
 
       const initialProv = {
@@ -198,7 +232,8 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
         invoice_number: manualForm.invoice_number ? "USER" : "DEFAULT",
         making_charges: "USER",
         taxes: "USER",
-        stone_charges: "USER"
+        stone_charges: "USER",
+        image_reference: manualPhotoPreview ? "USER" : "DEFAULT"
       };
 
       // Perform local audit rules
@@ -206,13 +241,16 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
       if (gw <= 0) warnings.push("Invalid data: weight cannot be zero or negative");
       if (gw > 1000) warnings.push("Suspicious weight: gross weight exceeds 1000g, verify scale readings");
       if (manualForm.price_type === "UNKNOWN") warnings.push("Historical gold value is estimated using historical gold market data");
+      if (!manualForm.invoice_number) warnings.push("No invoice number provided — item logged as self-reported holding");
 
       setReviewData(initialData);
       setProvenance(initialProv);
       setAuditWarnings(warnings);
       setAgentLogs([{
         agent: "PORTFOLIO_AUDITOR",
-        thought: "Verified manual input and resolved purchase price tracking settings."
+        thought: manualForm.invoice_number
+          ? "Verified manual input with user-provided invoice reference number."
+          : "Verified manual input as self-reported holding without attached invoice."
       }]);
       setIsReviewing(true);
     } catch (err) {
@@ -262,6 +300,19 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
     setLoading(true);
     try {
       const isNeedsReview = reviewData.is_suspicious;
+
+      const defaultConfidence = activeOption === "manual"
+        ? (reviewData.invoice_number ? "High (Manual Invoice Ref)" : "High (Self-Reported)")
+        : (activeOption === "image" ? "Medium (Visual AI Estimation)" : "High (Invoice Verified)");
+
+      const defaultMethod = activeOption === "manual"
+        ? (reviewData.invoice_number ? "Self-Reported (Invoice Ref Provided)" : "Self-Reported Manual Entry")
+        : (activeOption === "image" ? "Visual Photo Analysis" : "Invoice Grounded");
+
+      const defaultPriceSource = activeOption === "manual"
+        ? (provenance.purchase_price === "AI_ESTIMATED" || !reviewData.purchase_price ? "HISTORICAL_GOLD_RATE" : "USER_EXACT")
+        : (activeOption === "image" ? "AI_VISUAL_ESTIMATE" : "Total Amount Inclusive of GST");
+
       const payload = {
         user_id: "user_bride",
         name: (reviewData.jewellery_name || "Gold Jewellery Item").trim(),
@@ -273,7 +324,7 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
         purchase_price_usd: reviewData.purchase_price ? Number(reviewData.purchase_price) : null,
         currency: reviewData.currency || currency,
         purchase_price_status: (provenance.purchase_price === "AI_ESTIMATED" || !reviewData.purchase_price) ? "AI_ESTIMATED" : "EXACT",
-        purchase_price_source: reviewData.purchase_price_source || (provenance.purchase_price === "INVOICE" ? "Total Amount Inclusive of GST" : (provenance.purchase_price === "AI_ESTIMATED" || !reviewData.purchase_price ? "HISTORICAL_GOLD_RATE" : "USER_EXACT")),
+        purchase_price_source: reviewData.purchase_price_source || defaultPriceSource,
         provenance_status: provenance.purchase_price === "INVOICE" ? (isNeedsReview ? "INVOICE — NEEDS REVIEW" : "INVOICE_VERIFIED") : (provenance.purchase_price === "AI_ESTIMATED" || !reviewData.purchase_price ? "AI_ESTIMATED" : "SELF_REPORTED"),
         historical_gold_value: reviewData.historical_gold_value,
         estimated_jewellery_value_min: reviewData.estimated_jewellery_value_min,
@@ -283,9 +334,10 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
         historical_gold_price: reviewData.historical_gold_price,
         historical_gold_price_currency: reviewData.historical_gold_price_currency || "USD",
         historical_gold_price_date: reviewData.historical_gold_price_date || reviewData.purchase_date,
-        estimation_confidence: reviewData.estimation_confidence || "High (Invoice Verified)",
-        estimation_method: reviewData.estimation_method || "Invoice Grounded",
-        notes: `Extracted via Add Gold flow. Source: ${reviewData.purchase_price_source || provenance.purchase_price}`,
+        estimation_confidence: reviewData.estimation_confidence || defaultConfidence,
+        estimation_method: reviewData.estimation_method || defaultMethod,
+        notes: `Extracted via Add Gold flow (${activeOption}). Source: ${reviewData.purchase_price_source || defaultPriceSource}`,
+        image_reference: manualPhotoPreview || reviewData.image_reference || null,
         colour: reviewData.colour || "yellow"
       };
 
@@ -310,7 +362,9 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
 
       const res = await api.addManualAsset(payload);
       if (res && res.asset_id) {
-        const fileToUpload = activeOption === "invoice" ? invoiceFile : (activeOption === "image" ? jewelleryFile : null);
+        const fileToUpload = activeOption === "invoice" 
+          ? invoiceFile 
+          : (activeOption === "image" ? jewelleryFile : manualJewelleryFile);
         if (fileToUpload) {
           try {
             await api.uploadAssetImage(res.asset_id, fileToUpload);
@@ -339,6 +393,8 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
     setAgentLogs([]);
     setInvoiceFile(null);
     setJewelleryFile(null);
+    setManualJewelleryFile(null);
+    setManualPhotoPreview(null);
     setManualForm({
       name: "",
       category: "necklace",
@@ -556,7 +612,7 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
 
           {/* Option C: Manual Addition Form */}
           {activeOption === "manual" && (
-            <form onSubmit={handleManualReview} className="rounded-b-xl border border-t-0 border-border bg-card p-6 space-y-4">
+            <form onSubmit={handleManualReview} className="rounded-b-xl border border-t-0 border-border bg-card p-6 space-y-5">
               <div className="border border-amber-500/30 bg-amber-500/5 rounded-xl p-4 flex gap-3 items-center">
                 <AlertTriangle className="h-5.5 w-5.5 text-amber-400 shrink-0" />
                 <div>
@@ -565,25 +621,109 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div className="space-y-1">
-                  <label className="text-mutedText uppercase font-bold block text-[10px]">Description Name *</label>
+              {/* Optional Photo Upload for Manual Entry */}
+              <div className="rounded-xl border border-border/80 bg-background/50 p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Camera className="h-4 w-4 text-gold" />
+                      <span>Upload Jewellery Photo (Optional)</span>
+                    </label>
+                    <p className="text-[11px] text-mutedText mt-0.5">
+                      Attach a real photo of your jewellery to showcase it in "My Collection" instead of default AI-generated imagery.
+                    </p>
+                  </div>
+                  {manualPhotoPreview && (
+                    <span className="self-start sm:self-auto text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full font-semibold flex items-center gap-1">
+                      <Check className="h-3 w-3" /> Photo Attached
+                    </span>
+                  )}
+                </div>
+
+                {manualPhotoPreview ? (
+                  <div className="flex items-center gap-4 bg-background border border-gold/40 p-3 rounded-lg">
+                    <div className="relative h-16 w-16 rounded-lg overflow-hidden border border-gold/40 shadow-sm shrink-0 bg-black/50 flex items-center justify-center">
+                      <img 
+                        src={manualPhotoPreview} 
+                        alt="Uploaded Jewellery" 
+                        className="h-full w-full object-cover" 
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-bold text-white block truncate">
+                        {manualJewelleryFile?.name || "Uploaded Photo"}
+                      </span>
+                      <span className="text-[10px] text-mutedText block mt-0.5">
+                        {manualJewelleryFile ? `${(manualJewelleryFile.size / 1024).toFixed(1)} KB` : "Ready"} • Displayed directly in My Collection
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <label className="px-3 py-1.5 rounded-lg bg-cardHover hover:bg-border text-white text-xs font-semibold cursor-pointer transition flex items-center gap-1.5">
+                        <RefreshCw className="h-3 w-3 text-gold" />
+                        <span>Change</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="hidden" 
+                          onChange={(e) => handleManualPhotoChange(e.target.files?.[0] || null)} 
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleManualPhotoChange(null)}
+                        className="p-1.5 rounded-lg hover:bg-red-500/10 text-mutedText hover:text-red-400 transition"
+                        title="Remove photo"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="border-2 border-dashed border-border/80 hover:border-gold/60 bg-background/40 hover:bg-background/80 rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer transition text-center group">
+                    <div className="p-2.5 rounded-full bg-gold/10 group-hover:bg-gold/20 text-gold transition">
+                      <ImageIcon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-white block group-hover:text-gold transition">
+                        Click or drag & drop to attach a photo
+                      </span>
+                      <span className="text-[10px] text-mutedText block mt-0.5">
+                        Supports JPG, PNG, WebP • Shown directly in My Collection gallery
+                      </span>
+                    </div>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={(e) => handleManualPhotoChange(e.target.files?.[0] || null)} 
+                    />
+                  </label>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4 text-xs">
+                <div className="space-y-1.5">
+                  <div className="min-h-[18px] flex items-center justify-between">
+                    <label className="text-mutedText uppercase font-bold block text-[10px]">Description Name *</label>
+                  </div>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Traditional Gold Chain"
                     value={manualForm.name}
                     onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })}
-                    className="w-full bg-background border border-border focus:border-gold rounded-lg p-2.5 text-white focus:outline-none"
+                    className={fieldBaseClass}
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-mutedText uppercase font-bold block text-[10px]">Category *</label>
+                <div className="space-y-1.5">
+                  <div className="min-h-[18px] flex items-center justify-between">
+                    <label className="text-mutedText uppercase font-bold block text-[10px]">Category *</label>
+                  </div>
                   <select
                     value={manualForm.category}
                     onChange={(e) => setManualForm({ ...manualForm, category: e.target.value })}
-                    className="w-full bg-background border border-border focus:border-gold rounded-lg p-2.5 text-white focus:outline-none capitalize"
+                    className={`${selectBaseClass} capitalize`}
                   >
                     <option value="necklace">necklace</option>
                     <option value="bangle">bangle</option>
@@ -595,12 +735,14 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
                   </select>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-mutedText uppercase font-bold block text-[10px]">Gold Purity *</label>
+                <div className="space-y-1.5">
+                  <div className="min-h-[18px] flex items-center justify-between">
+                    <label className="text-mutedText uppercase font-bold block text-[10px]">Gold Purity *</label>
+                  </div>
                   <select
                     value={manualForm.purity}
                     onChange={(e) => setManualForm({ ...manualForm, purity: e.target.value })}
-                    className="w-full bg-background border border-border focus:border-gold rounded-lg p-2.5 text-white focus:outline-none"
+                    className={selectBaseClass}
                   >
                     <option value="24K">24K (99.9% Pure)</option>
                     <option value="22K">22K (91.6% Pure)</option>
@@ -608,8 +750,10 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
                   </select>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-mutedText uppercase font-bold block text-[10px]">Gross Weight (grams) *</label>
+                <div className="space-y-1.5">
+                  <div className="min-h-[18px] flex items-center justify-between">
+                    <label className="text-mutedText uppercase font-bold block text-[10px]">Gross Weight (grams) *</label>
+                  </div>
                   <input
                     type="number"
                     step="0.01"
@@ -617,103 +761,117 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
                     placeholder="Total weight of item"
                     value={manualForm.gross_weight}
                     onChange={(e) => setManualForm({ ...manualForm, gross_weight: e.target.value })}
-                    className="w-full bg-background border border-border focus:border-gold rounded-lg p-2.5 text-white focus:outline-none font-mono"
+                    className={`${fieldBaseClass} font-mono`}
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-mutedText uppercase font-bold block text-[10px]">Non-Gold Stone Weight (grams)</label>
+                <div className="space-y-1.5">
+                  <div className="min-h-[18px] flex items-center justify-between">
+                    <label className="text-mutedText uppercase font-bold block text-[10px]">Non-Gold Stone Weight (grams)</label>
+                  </div>
                   <input
                     type="number"
                     step="0.01"
                     placeholder="Weight of stones/pearls (subtracted)"
                     value={manualForm.stone_weight}
                     onChange={(e) => setManualForm({ ...manualForm, stone_weight: e.target.value })}
-                    className="w-full bg-background border border-border focus:border-gold rounded-lg p-2.5 text-white focus:outline-none font-mono"
+                    className={`${fieldBaseClass} font-mono`}
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-mutedText uppercase font-bold block text-[10px]">Purchase Date *</label>
+                <div className="space-y-1.5">
+                  <div className="min-h-[18px] flex items-center justify-between">
+                    <label className="text-mutedText uppercase font-bold block text-[10px]">Purchase Date *</label>
+                  </div>
                   <input
                     type="date"
                     required
                     max={new Date().toISOString().split("T")[0]}
                     value={manualForm.purchase_date}
                     onChange={(e) => setManualForm({ ...manualForm, purchase_date: e.target.value })}
-                    className="w-full bg-background border border-border focus:border-gold rounded-lg p-2.5 text-white focus:outline-none"
+                    className={fieldBaseClass}
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-mutedText uppercase font-bold block text-[10px]">Purchase Price Method *</label>
+                <div className="space-y-1.5">
+                  <div className="min-h-[18px] flex items-center justify-between">
+                    <label className="text-mutedText uppercase font-bold block text-[10px]">Purchase Price Method *</label>
+                  </div>
                   <select
                     value={manualForm.price_type}
                     onChange={(e) => setManualForm({ ...manualForm, price_type: e.target.value as any })}
-                    className="w-full bg-background border border-border focus:border-gold rounded-lg p-2.5 text-white focus:outline-none"
+                    className={selectBaseClass}
                   >
                     <option value="EXACT">Exact Purchase Price Known</option>
                     <option value="APPROXIMATE">Approximate Purchase Price</option>
-                    <option value="UNKNOWN">Estimate Automatically (from Purchase Date Gold Rate)</option>
+                    <option value="UNKNOWN">Estimate Automatically (from Gold Rate)</option>
                   </select>
                 </div>
 
-                {manualForm.price_type !== "UNKNOWN" && (
-                  <div className="space-y-1">
-                    <label className="text-mutedText uppercase font-bold block text-[10px]">
-                      Purchase Price <span className="text-mutedText font-normal text-[9px]">(Optional — auto-estimated if empty)</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      placeholder="Amount paid (leave empty to auto-estimate from date rate)"
-                      value={manualForm.purchase_price}
-                      onChange={(e) => setManualForm({ ...manualForm, purchase_price: e.target.value })}
-                      className="w-full bg-background border border-border focus:border-gold rounded-lg p-2.5 text-white focus:outline-none font-mono"
-                    />
+                <div className="space-y-1.5">
+                  <div className="min-h-[18px] flex items-center justify-between">
+                    <label className="text-mutedText uppercase font-bold block text-[10px]">Purchase Price</label>
+                    <span className="text-mutedText text-[9px] lowercase font-normal">(Optional — auto-estimated if empty)</span>
                   </div>
-                )}
+                  <input
+                    type="number"
+                    step="any"
+                    disabled={manualForm.price_type === "UNKNOWN"}
+                    placeholder={manualForm.price_type === "UNKNOWN" ? "Auto-estimated from purchase date gold rate" : "Amount paid"}
+                    value={manualForm.price_type === "UNKNOWN" ? "" : manualForm.purchase_price}
+                    onChange={(e) => setManualForm({ ...manualForm, purchase_price: e.target.value })}
+                    className={`${fieldBaseClass} font-mono ${manualForm.price_type === "UNKNOWN" ? "opacity-50 cursor-not-allowed bg-background/50" : ""}`}
+                  />
+                </div>
 
-                <div className="space-y-1">
-                  <label className="text-mutedText uppercase font-bold block text-[10px]">Currency *</label>
+                <div className="space-y-1.5">
+                  <div className="min-h-[18px] flex items-center justify-between">
+                    <label className="text-mutedText uppercase font-bold block text-[10px]">Currency *</label>
+                  </div>
                   <input
                     type="text"
                     required
                     value={manualForm.currency}
                     onChange={(e) => setManualForm({ ...manualForm, currency: e.target.value })}
-                    className="w-full bg-background border border-border focus:border-gold rounded-lg p-2.5 text-white focus:outline-none font-mono uppercase"
+                    className={`${fieldBaseClass} font-mono uppercase`}
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-mutedText uppercase font-bold block text-[10px]">Seller / Jeweller</label>
+                <div className="space-y-1.5">
+                  <div className="min-h-[18px] flex items-center justify-between">
+                    <label className="text-mutedText uppercase font-bold block text-[10px]">Seller / Jeweller</label>
+                  </div>
                   <input
                     type="text"
                     placeholder="e.g. GRT Jewellers"
                     value={manualForm.jeweller}
                     onChange={(e) => setManualForm({ ...manualForm, jeweller: e.target.value })}
-                    className="w-full bg-background border border-border focus:border-gold rounded-lg p-2.5 text-white focus:outline-none"
+                    className={fieldBaseClass}
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-mutedText uppercase font-bold block text-[10px]">Invoice Ref Number</label>
+                <div className="space-y-1.5">
+                  <div className="min-h-[18px] flex items-center justify-between">
+                    <label className="text-mutedText uppercase font-bold block text-[10px]">Invoice Ref Number</label>
+                  </div>
                   <input
                     type="text"
                     placeholder="e.g. INV-9817"
                     value={manualForm.invoice_number}
                     onChange={(e) => setManualForm({ ...manualForm, invoice_number: e.target.value })}
-                    className="w-full bg-background border border-border focus:border-gold rounded-lg p-2.5 text-white focus:outline-none"
+                    className={fieldBaseClass}
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-mutedText uppercase font-bold block text-[10px]">Making Charges</label>
+                <div className="space-y-1.5">
+                  <div className="min-h-[18px] flex items-center justify-between">
+                    <label className="text-mutedText uppercase font-bold block text-[10px]">Making Charges</label>
+                  </div>
                   <input
                     type="number"
                     value={manualForm.making_charges}
                     onChange={(e) => setManualForm({ ...manualForm, making_charges: e.target.value })}
-                    className="w-full bg-background border border-border focus:border-gold rounded-lg p-2.5 text-white focus:outline-none font-mono"
+                    className={`${fieldBaseClass} font-mono`}
                   />
                 </div>
               </div>
@@ -784,6 +942,25 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
                   <li key={idx}>{w}</li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {/* Custom Photo Preview Banner */}
+          {(manualPhotoPreview || reviewData?.image_reference) && (
+            <div className="flex items-center gap-4 bg-background/80 border border-gold/40 p-3.5 rounded-xl">
+              <div className="relative h-16 w-16 rounded-lg overflow-hidden border border-gold/40 shadow-sm shrink-0 bg-black/50 flex items-center justify-center">
+                <img 
+                  src={manualPhotoPreview || reviewData.image_reference} 
+                  alt="Jewellery piece" 
+                  className="h-full w-full object-cover" 
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-xs font-bold text-white block">Custom Photo Attached</span>
+                <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1 mt-0.5">
+                  <Check className="h-3 w-3" /> This uploaded photo will be displayed in My Collection instead of default images
+                </span>
+              </div>
             </div>
           )}
 
@@ -1057,7 +1234,13 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
               <div className="flex justify-between items-center">
                 <span className="text-mutedText uppercase font-bold text-[10px]">Purchase Price Source</span>
                 <span className="text-[9px] font-bold text-gold uppercase px-2 py-0.5 rounded bg-gold/10 border border-gold/20">
-                  {reviewData.purchase_price_source || "Total Amount Inclusive of GST"}
+                  {reviewData.purchase_price_source || (
+                    activeOption === "manual"
+                      ? (provenance.purchase_price === "AI_ESTIMATED" || !reviewData.purchase_price ? "HISTORICAL_GOLD_RATE" : "USER_EXACT")
+                      : activeOption === "image"
+                      ? "AI_VISUAL_ESTIMATE"
+                      : "Total Amount Inclusive of GST"
+                  )}
                 </span>
               </div>
               <input
@@ -1149,16 +1332,46 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
           <div className="rounded-xl border border-border bg-background/50 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-gold uppercase tracking-wider block">Extraction Audit & Provenance Verification</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
-                Confidence: {reviewData.estimation_confidence || "High (Invoice Verified)"}
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border font-mono ${
+                (provenance.purchase_price === "INVOICE" || (activeOption === "invoice" && reviewData.invoice_number))
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                  : activeOption === "image"
+                  ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                  : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+              }`}>
+                Confidence: {
+                  reviewData.estimation_confidence || (
+                    activeOption === "manual"
+                      ? (reviewData.invoice_number ? "High (Manual Invoice Ref)" : "High (Self-Reported)")
+                      : activeOption === "image"
+                      ? "Medium (Visual AI Estimation)"
+                      : "High (Invoice Verified)"
+                  )
+                }
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-[11px] font-mono">
               <div className="p-2.5 rounded-lg bg-card border border-border">
                 <span className="text-mutedText block text-[9px] uppercase font-sans mb-1">Document Status</span>
-                <span className="text-emerald-400 font-bold flex items-center gap-1">
-                  <Check className="h-3 w-3 stroke-[3]" /> Invoice Detected
-                </span>
+                {activeOption === "invoice" || provenance.purchase_price === "INVOICE" ? (
+                  <span className="text-emerald-400 font-bold flex items-center gap-1">
+                    <Check className="h-3 w-3 stroke-[3]" /> Invoice Detected
+                  </span>
+                ) : activeOption === "manual" || provenance.gross_weight_grams === "USER" ? (
+                  reviewData.invoice_number ? (
+                    <span className="text-blue-400 font-bold flex items-center gap-1">
+                      <Check className="h-3 w-3 stroke-[3]" /> Manual Invoice Ref
+                    </span>
+                  ) : (
+                    <span className="text-amber-400 font-bold flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" /> No Invoice Provided
+                    </span>
+                  )
+                ) : (
+                  <span className="text-purple-400 font-bold flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" /> Visual Recognition
+                  </span>
+                )}
               </div>
               <div className="p-2.5 rounded-lg bg-card border border-border">
                 <span className="text-mutedText block text-[9px] uppercase font-sans mb-1">Purity</span>
@@ -1181,7 +1394,15 @@ export const AddGold: React.FC<AddGoldProps> = ({ onAssetAdded, onNavigate, curr
               </div>
               <div className="p-2.5 rounded-lg bg-card border border-border">
                 <span className="text-mutedText block text-[9px] uppercase font-sans mb-1">Price Source Field</span>
-                <span className="text-gold font-bold truncate block">{reviewData.purchase_price_source || "Total Amount Inclusive of GST"}</span>
+                <span className="text-gold font-bold truncate block">
+                  {reviewData.purchase_price_source || (
+                    activeOption === "manual"
+                      ? (provenance.purchase_price === "AI_ESTIMATED" || !reviewData.purchase_price ? "HISTORICAL_GOLD_RATE" : "USER_EXACT")
+                      : activeOption === "image"
+                      ? "AI_VISUAL_ESTIMATE"
+                      : "Total Amount Inclusive of GST"
+                  )}
+                </span>
               </div>
               <div className="p-2.5 rounded-lg bg-card border border-border">
                 <span className="text-mutedText block text-[9px] uppercase font-sans mb-1">Purchase Date</span>

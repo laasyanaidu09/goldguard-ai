@@ -4,9 +4,10 @@ import { AddGold } from "./components/AddGold";
 import { CollectionAdvisor } from "./components/CollectionAdvisor";
 import { PlanPurchase } from "./components/PlanPurchase";
 import { MarketIntelligence } from "./components/MarketIntelligence";
-import { Coins, Layout, Plus, Sparkles, TrendingUp, HelpCircle, Gem, Menu, X } from "lucide-react";
+import { SimilarityFinder } from "./components/SimilarityFinder";
+import { Coins, Layout, Plus, Sparkles, TrendingUp, HelpCircle, Gem, Menu, X, ScanSearch } from "lucide-react";
 
-type TabType = "dashboard" | "collection" | "add" | "advisor" | "plan" | "market";
+type TabType = "dashboard" | "collection" | "add" | "similarity" | "advisor" | "plan" | "market";
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
@@ -105,6 +106,15 @@ function App() {
             >
               <Plus className="h-4 w-4" />
               Add Gold
+            </button>
+            <button
+              onClick={() => setActiveTab("similarity")}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition ${
+                activeTab === "similarity" ? "bg-background text-gold" : "hover:text-white"
+              }`}
+            >
+              <ScanSearch className="h-4 w-4" />
+              Similarity Finder
             </button>
             <button
               onClick={() => setActiveTab("advisor")}
@@ -211,6 +221,15 @@ function App() {
               Add Gold
             </button>
             <button
+              onClick={() => { setActiveTab("similarity"); setMobileMenuOpen(false); }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
+                activeTab === "similarity" ? "bg-background text-gold border border-gold/30" : "text-mutedText hover:text-white"
+              }`}
+            >
+              <ScanSearch className="h-4 w-4" />
+              Similarity Finder
+            </button>
+            <button
               onClick={() => { setActiveTab("advisor"); setMobileMenuOpen(false); }}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold transition ${
                 activeTab === "advisor" ? "bg-background text-gold border border-gold/30" : "text-mutedText hover:text-white"
@@ -270,6 +289,13 @@ function App() {
               setActiveTab(tab);
             }}
             currency={homeCurrency}
+          />
+        )}
+
+        {activeTab === "similarity" && (
+          <SimilarityFinder 
+            currency={homeCurrency}
+            onPlanPurchase={handlePlanRecommendation}
           />
         )}
 
@@ -336,6 +362,15 @@ function App() {
             <Plus className="h-4 w-4" />
           </div>
           <span>Add</span>
+        </button>
+        <button
+          onClick={() => { setActiveTab("similarity"); setMobileMenuOpen(false); }}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition text-[10px] font-semibold ${
+            activeTab === "similarity" ? "text-gold bg-gold/10" : "text-mutedText hover:text-white"
+          }`}
+        >
+          <ScanSearch className="h-4.5 w-4.5 mb-0.5" />
+          <span>Similarity</span>
         </button>
         <button
           onClick={() => { setActiveTab("advisor"); setMobileMenuOpen(false); }}

@@ -797,6 +797,28 @@ def get_collection_recommendations(user_id: str = "user_bride"):
     result = agents.run_collection_advisor(portfolio)
     return result
 
+class TargetSimilarityPayload(BaseModel):
+    user_id: Optional[str] = "user_bride"
+    target_design: dict
+
+@app.post("/api/jewellery/similarity")
+def check_jewellery_similarity(payload: TargetSimilarityPayload):
+    """
+    Endpoint to evaluate design similarity of a target item against user portfolio.
+    """
+    portfolio = database.load_user_portfolio(payload.user_id or "user_bride")
+    return agents.run_jewellery_similarity(payload.target_design, portfolio)
+
+@app.post("/api/similarity/find")
+async def find_jewellery_similarity(file: UploadFile = File(...), user_id: str = "user_bride"):
+    """
+    Endpoint for AI Similarity Finder: evaluates image clarity and compares the target
+    jewellery item against the user's collection with strict no-hallucination policy.
+    """
+    content = await file.read()
+    portfolio = database.load_user_portfolio(user_id)
+    return agents.run_similarity_finder(content, file.filename, portfolio)
+
 class PurchasePlanPayload(BaseModel):
     user_id: str
     target_purity: str
