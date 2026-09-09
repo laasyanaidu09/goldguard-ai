@@ -1,3 +1,4 @@
+import threading
 import os
 import csv
 import json
@@ -22,19 +23,65 @@ elif os.path.exists("/data"):
 else:
     DATA_DIR = os.path.join(os.getcwd(), "data")
 
-# Local cache for portfolios in Demo Mode to support dynamic in-memory modifications
+# Local cache and persistent store for portfolios in Demo / Local Mode
 _demo_portfolios = {}
+_db_lock = threading.Lock()
+_demo_db_initialized = False
+STORE_FILE = os.path.join(DATA_DIR, "user_portfolios_store.json")
+
+def _save_portfolios_to_store():
+    """
+    Persists _demo_portfolios to user_portfolios_store.json in an atomic, thread-safe way.
+    Ensures newly added, edited, or deleted items survive server restarts and browser refreshes.
+    """
+    try:
+        temp_file = STORE_FILE + ".tmp"
+        with open(temp_file, "w", encoding="utf-8") as f:
+            json.dump(_demo_portfolios, f, indent=2, default=str)
+        os.replace(temp_file, STORE_FILE)
+    except Exception as e:
+        print(f"Error saving portfolios store: {e}")
+
+def _load_portfolios_from_store():
+    """
+    Loads portfolios from user_portfolios_store.json if it exists and contains valid data.
+    """
+    if os.path.exists(STORE_FILE):
+        try:
+            with open(STORE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict) and data.get("user_bride"):
+                    return data
+        except Exception as e:
+            print(f"Error reading portfolios store: {e}")
+    return None
 
 def init_demo_db():
-    global _demo_portfolios
-    if not _demo_portfolios:
+    global _demo_portfolios, _demo_db_initialized
+    with _db_lock:
+        if _demo_db_initialized and _demo_portfolios:
+            return
+
+        # 1. Try loading from persistent disk store first
+        stored_data = _load_portfolios_from_store()
+        if stored_data:
+            _demo_portfolios = stored_data
+            _demo_db_initialized = True
+            return
+
+        # 2. If no store exists, initialize from synthetic_user_portfolios.csv
         try:
             csv_path = os.path.join(DATA_DIR, "synthetic_user_portfolios.csv")
             df = pd.read_csv(csv_path)
+            temp_portfolios = {}
             for _, row in df.iterrows():
                 user_id = row["user_id"]
-                if user_id not in _demo_portfolios:
-                    _demo_portfolios[user_id] = []
+                if user_id not in temp_portfolios:
+                    temp_portfolios[user_id] = []
+                
+                # Prevent duplicate seed entries
+                if any(a["asset_id"] == row["asset_id"] for a in temp_portfolios[user_id]):
+                    continue
                 
                 # Parse JSON representation of data_sources
                 try:
@@ -90,22 +137,67 @@ def init_demo_db():
                     "estimation_method": None,
                     "notes": ""
                 }
-                _demo_portfolios[user_id].append(asset)
+                temp_portfolios[user_id].append(asset)
+            
+            # Check if user had uploaded Lakshmi haaram image, restore it if present
+            upload_dir = os.path.join(_curr_dir, "static", "uploads")
+            if os.path.exists(os.path.join(upload_dir, "ASSET_103_Lakshmi_haaram.png")):
+                if "user_bride" in temp_portfolios and not any(a["asset_id"] == "ASSET_103" for a in temp_portfolios["user_bride"]):
+                    temp_portfolios["user_bride"].append({
+                        "asset_id": "ASSET_103",
+                        "name": "Lakshmi Haaram",
+                        "category": "necklace",
+                        "style": "traditional",
+                        "purity": "22K",
+                        "gross_weight_grams": 45.0,
+                        "net_gold_weight_grams": 41.25,
+                        "purchase_date": "2023-11-20",
+                        "purchase_price": 3200.0,
+                        "gold_rate": 141.72,
+                        "making_charges": 250.0,
+                        "wastage": 0.0,
+                        "taxes": 0.0,
+                        "currency": "SGD",
+                        "invoice_reference": None,
+                        "image_reference": "/uploads/ASSET_103_Lakshmi_haaram.png",
+                        "colour": "yellow",
+                        "documentation_status": "self_reported",
+                        "data_sources": {"name": "user_input", "purity": "user_input", "weight": "user_input"},
+                        "estimated_current_value": 0.0,
+                        "last_updated": datetime.now().isoformat(),
+                        "purchase_price_status": "EXACT",
+                        "purchase_price_source": "USER_EXACT",
+                        "provenance_status": "SELF_REPORTED",
+                        "notes": "Restored user vault item."
+                    })
+
+            _demo_portfolios = temp_portfolios
+            _demo_db_initialized = True
+            # Persist to store file immediately
+            _save_portfolios_to_store()
         except Exception as e:
             print(f"Error loading demo user portfolios: {e}")
 
-# Call init_demo_db on module load
-if DEMO_MODE:
-    init_demo_db()
+# Call init_demo_db unconditionally on module load to guarantee ready data
+init_demo_db()
+
+_firestore_client = None
+_firestore_checked = False
 
 def get_db():
-    if not DEMO_MODE:
-        try:
-            from google.cloud import firestore
-            return firestore.Client(project=PROJECT_ID)
-        except Exception as e:
-            print(f"Firestore not available or credentials missing: {e}. Falling back to local data.")
-    return None
+    global _firestore_client, _firestore_checked
+    if DEMO_MODE or not PROJECT_ID:
+        return None
+    if _firestore_checked:
+        return _firestore_client
+    try:
+        from google.cloud import firestore
+        _firestore_client = firestore.Client(project=PROJECT_ID)
+    except Exception as e:
+        print(f"Firestore not available or credentials missing: {e}. Falling back to local data.")
+        _firestore_client = None
+    _firestore_checked = True
+    return _firestore_client
 
 def load_catalog() -> list:
     """
@@ -132,13 +224,22 @@ def load_gold_prices() -> list:
         return []
 
 CALIBRATED_GOLD_PRICE_USD = 141.72  # Retail 24K benchmark matching Joyalukkas: SGD 189.90 (24K), SGD 173.90 (22K), SGD 142.50 (18K)
+_cached_gold_price = None
+_last_price_fetch_time = 0.0
 
 def get_current_gold_price_usd() -> float:
     """
     Retrieves the latest verified 24K retail gold rate per gram in USD.
     Validates sanity bounds (110.00 <= price <= 180.00 USD/g) aligned with
     official Singapore & international jeweller display board rates.
+    Cached for 5 minutes (300s) to prevent blocking HTTP requests.
     """
+    global _cached_gold_price, _last_price_fetch_time
+    import time
+    now = time.time()
+    if _cached_gold_price is not None and (now - _last_price_fetch_time < 300.0):
+        return _cached_gold_price
+
     import urllib.request
     import json
     
@@ -148,7 +249,7 @@ def get_current_gold_price_usd() -> float:
             "https://api.gold-api.com/price/XAU", 
             headers={"User-Agent": "Mozilla/5.0"}
         )
-        with urllib.request.urlopen(req, timeout=3) as response:
+        with urllib.request.urlopen(req, timeout=2) as response:
             data = json.loads(response.read().decode())
             raw_price = float(data.get("price", 0.0))
             
@@ -161,7 +262,9 @@ def get_current_gold_price_usd() -> float:
                 price_per_gram = None
                 
             if price_per_gram is not None and 110.0 <= price_per_gram <= 180.0:
-                return price_per_gram
+                _cached_gold_price = price_per_gram
+                _last_price_fetch_time = now
+                return _cached_gold_price
     except Exception:
         pass
         
@@ -170,64 +273,77 @@ def get_current_gold_price_usd() -> float:
     if prices:
         last_p = float(prices[-1]["gold_price"])
         if 110.0 <= last_p <= 180.0:
-            return last_p
+            _cached_gold_price = last_p
+            _last_price_fetch_time = now
+            return _cached_gold_price
             
-    return CALIBRATED_GOLD_PRICE_USD
+    _cached_gold_price = CALIBRATED_GOLD_PRICE_USD
+    _last_price_fetch_time = now
+    return _cached_gold_price
 
 def load_user_portfolio(user_id: str) -> list:
     """
-    Loads a user's gold portfolio assets.
+    Loads a user's gold portfolio assets with strict deduplication by asset_id.
     """
-    if DEMO_MODE:
-        init_demo_db()
-        return _demo_portfolios.get(user_id, [])
+    init_demo_db()
+    raw_assets = []
     
-    # Live Firestore mode
-    db = get_db()
-    if db is None:
-        init_demo_db()
-        return _demo_portfolios.get(user_id, [])
-        
-    try:
-        assets_ref = db.collection("users").document(user_id).collection("gold_assets")
-        docs = assets_ref.stream()
-        assets = []
-        for doc in docs:
-            asset = doc.to_dict()
-            asset["asset_id"] = doc.id
-            assets.append(asset)
-        if not assets:
-            init_demo_db()
-            return _demo_portfolios.get(user_id, [])
-        return assets
-    except Exception as e:
-        print(f"Firestore error: {e}. Falling back to demo data.")
-        init_demo_db()
-        return _demo_portfolios.get(user_id, [])
+    if DEMO_MODE:
+        raw_assets = _demo_portfolios.get(user_id, [])
+    else:
+        # Live Firestore mode
+        db = get_db()
+        if db is None:
+            raw_assets = _demo_portfolios.get(user_id, [])
+        else:
+            try:
+                assets_ref = db.collection("users").document(user_id).collection("gold_assets")
+                docs = assets_ref.stream()
+                assets = []
+                for doc in docs:
+                    asset = doc.to_dict()
+                    asset["asset_id"] = doc.id
+                    assets.append(asset)
+                if not assets:
+                    raw_assets = _demo_portfolios.get(user_id, [])
+                else:
+                    raw_assets = assets
+            except Exception as e:
+                print(f"Firestore error: {e}. Falling back to demo data.")
+                raw_assets = _demo_portfolios.get(user_id, [])
+
+    # Strictly deduplicate by asset_id to guarantee unique collection items
+    seen_ids = set()
+    deduped_assets = []
+    for a in raw_assets:
+        aid = a.get("asset_id")
+        if aid and aid not in seen_ids:
+            seen_ids.add(aid)
+            deduped_assets.append(a)
+        elif not aid:
+            deduped_assets.append(a)
+    return deduped_assets
 
 def add_user_asset(user_id: str, asset: dict) -> dict:
     """
-    Adds a new gold asset to a user's portfolio.
+    Adds a new gold asset to a user's portfolio and persists to disk.
     """
     asset["last_updated"] = datetime.now().isoformat()
-    
-    if DEMO_MODE:
-        init_demo_db()
-        if user_id not in _demo_portfolios:
-            _demo_portfolios[user_id] = []
-        
-        # Ensure unique asset ID
-        asset["asset_id"] = f"ASSET_{100 + len(_demo_portfolios[user_id])}"
-        _demo_portfolios[user_id].append(asset)
-        return asset
-        
-    db = get_db()
+    init_demo_db()
+    db = get_db() if not DEMO_MODE else None
+
     if db is None:
-        # Fallback to in-memory demo data
-        if user_id not in _demo_portfolios:
-            _demo_portfolios[user_id] = []
-        asset["asset_id"] = f"ASSET_{100 + len(_demo_portfolios[user_id])}"
-        _demo_portfolios[user_id].append(asset)
+        with _db_lock:
+            if user_id not in _demo_portfolios:
+                _demo_portfolios[user_id] = []
+            # Ensure unique asset ID (find next unused ASSET_xxx)
+            existing_ids = {a.get("asset_id") for a in _demo_portfolios[user_id] if a.get("asset_id")}
+            idx = 100 + len(_demo_portfolios[user_id])
+            while f"ASSET_{idx}" in existing_ids:
+                idx += 1
+            asset["asset_id"] = f"ASSET_{idx}"
+            _demo_portfolios[user_id].append(asset)
+            _save_portfolios_to_store()
         return asset
         
     try:
@@ -242,22 +358,20 @@ def add_user_asset(user_id: str, asset: dict) -> dict:
 
 def delete_user_asset(user_id: str, asset_id: str) -> bool:
     """
-    Removes a gold asset from the portfolio.
+    Removes a gold asset from the portfolio and persists to disk.
     """
-    if DEMO_MODE:
-        init_demo_db()
-        if user_id in _demo_portfolios:
-            initial_len = len(_demo_portfolios[user_id])
-            _demo_portfolios[user_id] = [a for a in _demo_portfolios[user_id] if a["asset_id"] != asset_id]
-            return len(_demo_portfolios[user_id]) < initial_len
-        return False
-        
-    db = get_db()
+    init_demo_db()
+    db = get_db() if not DEMO_MODE else None
+
     if db is None:
-        if user_id in _demo_portfolios:
-            initial_len = len(_demo_portfolios[user_id])
-            _demo_portfolios[user_id] = [a for a in _demo_portfolios[user_id] if a["asset_id"] != asset_id]
-            return len(_demo_portfolios[user_id]) < initial_len
+        with _db_lock:
+            if user_id in _demo_portfolios:
+                initial_len = len(_demo_portfolios[user_id])
+                _demo_portfolios[user_id] = [a for a in _demo_portfolios[user_id] if a.get("asset_id") != asset_id]
+                changed = len(_demo_portfolios[user_id]) < initial_len
+                if changed:
+                    _save_portfolios_to_store()
+                return changed
         return False
         
     try:
@@ -269,40 +383,39 @@ def delete_user_asset(user_id: str, asset_id: str) -> bool:
 
 def update_user_asset(user_id: str, asset_id: str, updated_fields: dict) -> dict:
     """
-    Updates an existing gold asset with audit trails.
+    Updates an existing gold asset with audit trails and persists to disk.
     """
     updated_fields["last_updated"] = datetime.now().isoformat()
-    
-    if DEMO_MODE:
-        init_demo_db()
-        if user_id in _demo_portfolios:
-            for i, asset in enumerate(_demo_portfolios[user_id]):
-                if asset["asset_id"] == asset_id:
-                    # Capture audit information
-                    audit = {
-                        "updatedAt": datetime.now().isoformat(),
-                        "lastEditedBy": "user",
-                        "previousPurchasePrice": asset.get("purchase_price"),
-                        "newPurchasePrice": updated_fields.get("purchase_price"),
-                        "previousWeight": asset.get("gross_weight_grams"),
-                        "newWeight": updated_fields.get("gross_weight_grams"),
-                        "previousPurity": asset.get("purity"),
-                        "newPurity": updated_fields.get("purity")
-                    }
-                    if "audit_history" not in asset:
-                        asset["audit_history"] = []
-                    asset["audit_history"].append(audit)
-                    
-                    # Update fields
-                    for k, v in updated_fields.items():
-                        asset[k] = v
-                    return asset
+    init_demo_db()
+    db = get_db() if not DEMO_MODE else None
+
+    if db is None:
+        with _db_lock:
+            if user_id in _demo_portfolios:
+                for i, asset in enumerate(_demo_portfolios[user_id]):
+                    if asset.get("asset_id") == asset_id:
+                        # Capture audit information
+                        audit = {
+                            "updatedAt": datetime.now().isoformat(),
+                            "lastEditedBy": "user",
+                            "previousPurchasePrice": asset.get("purchase_price"),
+                            "newPurchasePrice": updated_fields.get("purchase_price"),
+                            "previousWeight": asset.get("gross_weight_grams"),
+                            "newWeight": updated_fields.get("gross_weight_grams"),
+                            "previousPurity": asset.get("purity"),
+                            "newPurity": updated_fields.get("purity")
+                        }
+                        if "audit_history" not in asset:
+                            asset["audit_history"] = []
+                        asset["audit_history"].append(audit)
+                        
+                        # Update fields
+                        for k, v in updated_fields.items():
+                            asset[k] = v
+                        _save_portfolios_to_store()
+                        return asset
         return {}
 
-    db = get_db()
-    if db is None:
-        return update_user_asset(user_id, asset_id, updated_fields) # fallback to memory
-        
     try:
         doc_ref = db.collection("users").document(user_id).collection("gold_assets").document(asset_id)
         doc = doc_ref.get()
@@ -331,4 +444,5 @@ def update_user_asset(user_id: str, asset_id: str, updated_fields: dict) -> dict
     except Exception as e:
         print(f"Firestore update error: {e}")
         return {}
+
 

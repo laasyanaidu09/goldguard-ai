@@ -40,7 +40,13 @@ export const CollectionAdvisor: React.FC<CollectionAdvisorProps> = ({ currency, 
 
         // Fetch portfolio
         const portRes = await api.getPortfolio(currency);
-        const portData = portRes.assets || [];
+        const rawPortData = portRes.assets || [];
+        const seenIds = new Set<string>();
+        const portData = rawPortData.filter((a: any) => {
+          if (!a.asset_id || seenIds.has(a.asset_id)) return false;
+          seenIds.add(a.asset_id);
+          return true;
+        });
         setPortfolio(portData);
         setSelectedCollateralIds(portData.map((a: any) => a.asset_id));
       } catch (err) {

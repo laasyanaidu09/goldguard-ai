@@ -859,7 +859,7 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({ isOpen, onClose, jewelle
                       className="w-full bg-background border border-border rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-gold capitalize"
                     >
                       <option value="">-- Choose from portfolio --</option>
-                      {portfolio.map(a => (
+                      {portfolio.filter((a, i, arr) => arr.findIndex(x => x.asset_id === a.asset_id) === i).map(a => (
                         <option key={a.asset_id} value={a.asset_id}>{a.name} ({a.category})</option>
                       ))}
                     </select>

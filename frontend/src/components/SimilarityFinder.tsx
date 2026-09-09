@@ -33,7 +33,15 @@ export const SimilarityFinder: React.FC<SimilarityFinderProps> = ({
     const fetchPortfolio = async () => {
       try {
         const res = await api.getPortfolio(currency);
-        if (res && res.assets) setPortfolio(res.assets);
+        if (res && res.assets) {
+          const seen = new Set<string>();
+          const unique = res.assets.filter((a: any) => {
+            if (!a.asset_id || seen.has(a.asset_id)) return false;
+            seen.add(a.asset_id);
+            return true;
+          });
+          setPortfolio(unique);
+        }
       } catch (err) {
         console.error("Failed to load portfolio:", err);
       }

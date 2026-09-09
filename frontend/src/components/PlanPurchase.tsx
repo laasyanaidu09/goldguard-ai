@@ -140,7 +140,13 @@ export const PlanPurchase: React.FC<PlanPurchaseProps> = ({
       try {
         const portRes = await api.getPortfolio(currency);
         if (portRes && portRes.assets) {
-          setPortfolio(portRes.assets);
+          const seen = new Set<string>();
+          const unique = portRes.assets.filter((a: any) => {
+            if (!a.asset_id || seen.has(a.asset_id)) return false;
+            seen.add(a.asset_id);
+            return true;
+          });
+          setPortfolio(unique);
         }
       } catch (e) {
         console.error("Failed to load portfolio:", e);

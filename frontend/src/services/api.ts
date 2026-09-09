@@ -1,6 +1,76 @@
-const API_BASE = typeof window !== "undefined" && window.location.port === "5173"
-  ? "http://localhost:8000/api" 
-  : "/api";
+import { logger } from "./logger";
+
+// Resilient Multi-Route Backend Client:
+// 1. In Vite dev server (port 5173), direct browser connection to "http://127.0.0.1:8000/api"
+//    completely bypasses the Vite dev proxy which can fail with "connect EPERM 127.0.0.1:8000 -> 502 Bad Gateway"
+// 2. Automatically fails over across candidate bases if any candidate returns 502/503/504 or network errors.
+export const API_BASE = "/api";
+let activeApiBase: string | null = null;
+
+const getFreshCandidates = (): string[] => {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname || "localhost";
+    const altHost = host === "localhost" ? "127.0.0.1" : "localhost";
+    if (window.location.port === "5173") {
+      return [`http://${host}:8000/api`, `http://${altHost}:8000/api`, "/api"];
+    }
+  }
+  return ["/api", "http://localhost:8000/api", "http://127.0.0.1:8000/api"];
+};
+
+const getCandidateBases = (): string[] => {
+  if (activeApiBase) return [activeApiBase];
+  return getFreshCandidates();
+};
+
+export async function apiFetch(path: string, options?: RequestInit): Promise<Response> {
+  let candidates = getCandidateBases();
+  let lastError: any = null;
+  let lastResponse: Response | null = null;
+
+  for (let i = 0; i < candidates.length; i++) {
+    const base = candidates[i];
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    const url = `${base}${cleanPath}`;
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: options?.signal || controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      // If we encounter a proxy-level crash (502 Bad Gateway / 503 / 504), retry with alternative candidate
+      if (res.status === 502 || res.status === 503 || res.status === 504) {
+        logger.warn("API", `Gateway error (Status ${res.status}) on ${url}; attempting alternative candidate...`);
+        activeApiBase = null;
+        lastResponse = res;
+        if (candidates.length === 1) {
+          candidates = getFreshCandidates().filter(b => b !== base);
+          i = -1;
+        }
+        continue;
+      }
+      activeApiBase = base;
+      return res;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      logger.warn("API", `Call to ${url} failed (${err.name === 'AbortError' ? 'timeout after 3.5s' : (err.message || err)}); trying alternative route...`);
+      activeApiBase = null;
+      lastError = err;
+      if (candidates.length === 1) {
+        candidates = getFreshCandidates().filter(b => b !== base);
+        i = -1;
+      }
+    }
+  }
+
+  if (lastResponse) return lastResponse;
+  throw lastError || new Error("Failed to connect to GoldGuard API server.");
+}
 
 export interface Asset {
   asset_id: string;
@@ -318,6 +388,21 @@ const mockPortfolio = (currency: string): PortfolioResponse => {
       gain_loss: totalVal - totalHistVal,
       gain_loss_percent: ((totalVal - totalHistVal) / totalHistVal) * 100,
       category_recommendations,
+      health_score: {
+        overall_score: 92,
+        grade: "A",
+        components: {
+          diversification: 85,
+          data_confidence: 88,
+          liquidity: 90,
+          purity: 95,
+          purchase_readiness: 92
+        },
+        explanations: {
+          purity: "Holdings calibrated to high purity standards.",
+          diversification: "Balanced gold allocation."
+        }
+      },
       currency
     }
   };
@@ -325,40 +410,83 @@ const mockPortfolio = (currency: string): PortfolioResponse => {
 
 export const api = {
   async getHealth() {
+    const start = Date.now();
     try {
-      const res = await fetch(`${API_BASE}/health`);
-      return await res.json();
-    } catch {
+      const res = await apiFetch("/health");
+      const data = await res.json();
+      logger.network("GET", "/api/health", res.status, Date.now() - start, data);
+      return data;
+    } catch (err: any) {
+      logger.network("GET", "/api/health", "FALLBACK", Date.now() - start, { error: err.message || err });
       return { status: "healthy", demo_mode: true };
     }
   },
 
   async getPrices(currency: string): Promise<MarketResponse> {
+    const start = Date.now();
     try {
-      const res = await fetch(`${API_BASE}/prices?currency=${currency}`);
-      if (!res.ok) throw new Error();
-      return await res.json();
-    } catch {
+      const res = await apiFetch(`/prices?currency=${currency}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      logger.network("GET", `/api/prices?currency=${currency}`, res.status, Date.now() - start, {
+        latestRate: data.latest_price,
+        currency: data.currency
+      });
+      return data;
+    } catch (err: any) {
+      logger.network("GET", `/api/prices?currency=${currency}`, "FALLBACK", Date.now() - start, { error: err.message || err });
       return mockPrices(currency);
     }
   },
 
   async getCatalog() {
+    const start = Date.now();
     try {
-      const res = await fetch(`${API_BASE}/catalog`);
-      if (!res.ok) throw new Error();
-      return await res.json();
-    } catch {
-      return []; // empty list fallback
+      const res = await apiFetch("/catalog");
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      logger.network("GET", "/api/catalog", res.status, Date.now() - start, { itemsCount: data.length });
+      return data;
+    } catch (err: any) {
+      logger.network("GET", "/api/catalog", "FALLBACK", Date.now() - start, { error: err.message || err });
+      return [];
     }
   },
 
   async getPortfolio(currency: string): Promise<PortfolioResponse> {
+    const start = Date.now();
     try {
-      const res = await fetch(`${API_BASE}/portfolio?currency=${currency}`);
-      if (!res.ok) throw new Error();
-      return await res.json();
-    } catch {
+      logger.info("Portfolio", `Requesting vault assets for currency: ${currency}...`);
+      const res = await apiFetch(`/portfolio?currency=${currency}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      logger.network("GET", `/api/portfolio?currency=${currency}`, res.status, Date.now() - start, {
+        assetsCount: data.assets?.length,
+        estimatedTotalValue: data.summary?.estimated_current_value
+      });
+      logger.success("Portfolio", `Loaded ${data.assets?.length || 0} vault holdings successfully.`);
+
+      // Persist to local cache so browser refresh during restarts retains assets
+      if (data && Array.isArray(data.assets) && data.assets.length > 0) {
+        try {
+          localStorage.setItem(`goldguard_portfolio_cache_${currency}`, JSON.stringify(data));
+        } catch (e) {}
+      }
+
+      return data;
+    } catch (err: any) {
+      logger.network("GET", `/api/portfolio?currency=${currency}`, "FALLBACK", Date.now() - start, { error: err.message || err });
+      try {
+        const cached = localStorage.getItem(`goldguard_portfolio_cache_${currency}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && Array.isArray(parsed.assets) && parsed.assets.length > 0) {
+            logger.warn("Portfolio", `Network failed for /api/portfolio; restored ${parsed.assets.length} items from browser vault cache.`);
+            return parsed;
+          }
+        }
+      } catch (e) {}
+      logger.warn("Portfolio", `Network failed for /api/portfolio; using resilient local holdings data.`);
       return mockPortfolio(currency);
     }
   },
@@ -369,7 +497,7 @@ export const api = {
     date_or_year: string;
     currency: string;
   }): Promise<any> {
-    const res = await fetch(`${API_BASE}/portfolio/estimate-historical`, {
+    const res = await apiFetch("/portfolio/estimate-historical", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -404,16 +532,25 @@ export const api = {
     colour?: string;
     style?: string;
   }) {
-    const res = await fetch(`${API_BASE}/portfolio`, {
+    const start = Date.now();
+    logger.info("Portfolio", `Submitting new asset: "${payload.name}" (${payload.gross_weight_grams}g ${payload.purity} ${payload.category})...`);
+    const res = await apiFetch("/portfolio", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
+    const duration = Date.now() - start;
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.detail || `Failed to add asset (Status ${res.status})`);
+      const errMessage = errData.detail || `Failed to add asset (Status ${res.status})`;
+      logger.network("POST", "/api/portfolio", res.status, duration, { error: errMessage });
+      logger.error("Portfolio", `Failed to add asset "${payload.name}": ${errMessage}`);
+      throw new Error(errMessage);
     }
-    return await res.json();
+    const data = await res.json();
+    logger.network("POST", "/api/portfolio", res.status, duration, { asset_id: data.asset_id });
+    logger.success("Portfolio", `Asset "${payload.name}" successfully committed to vault.`);
+    return data;
   },
 
   async editAsset(payload: {
@@ -444,41 +581,81 @@ export const api = {
     estimation_method?: string | null;
     image_reference?: string | null;
   }) {
-    const res = await fetch(`${API_BASE}/portfolio/edit`, {
+    const start = Date.now();
+    logger.info("Portfolio", `Updating asset ${payload.asset_id} ("${payload.name}")...`);
+    const res = await apiFetch("/portfolio/edit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
+    const duration = Date.now() - start;
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.detail || `Failed to update asset (Status ${res.status})`);
+      const errMessage = errData.detail || `Failed to update asset (Status ${res.status})`;
+      logger.network("POST", "/api/portfolio/edit", res.status, duration, { error: errMessage });
+      logger.error("Portfolio", `Failed to update asset ${payload.asset_id}: ${errMessage}`);
+      throw new Error(errMessage);
     }
-    return await res.json();
+    const data = await res.json();
+    logger.network("POST", "/api/portfolio/edit", res.status, duration, { asset_id: payload.asset_id });
+    logger.success("Portfolio", `Asset "${payload.name}" updated successfully.`);
+    return data;
   },
 
   async uploadAssetImage(assetId: string, file: File): Promise<any> {
+    const start = Date.now();
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch(`${API_BASE}/portfolio/${assetId}/upload-image`, {
+      const res = await apiFetch(`/portfolio/${assetId}/upload-image`, {
         method: "POST",
         body: formData
       });
-      return await res.json();
+      const data = await res.json();
+      logger.network("POST", `/api/portfolio/${assetId}/upload-image`, res.status, Date.now() - start);
+      return data;
     } catch {
+      logger.network("POST", `/api/portfolio/${assetId}/upload-image`, "FALLBACK", Date.now() - start);
       return { status: "success", image_reference: "/uploads/mock_uploaded.png" };
     }
   },
 
+  async uploadAssetInvoice(assetId: string, file: File): Promise<any> {
+    const start = Date.now();
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await apiFetch(`/portfolio/${assetId}/upload-invoice`, {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      logger.network("POST", `/api/portfolio/${assetId}/upload-invoice`, res.status, Date.now() - start);
+      return data;
+    } catch {
+      logger.network("POST", `/api/portfolio/${assetId}/upload-invoice`, "FALLBACK", Date.now() - start);
+      return { status: "success", invoice_reference: `/uploads/inv_${file.name}` };
+    }
+  },
+
   async deleteAsset(assetId: string) {
-    const res = await fetch(`${API_BASE}/portfolio/${assetId}`, {
+    const start = Date.now();
+    logger.info("Portfolio", `Deleting asset ${assetId}...`);
+    const res = await apiFetch(`/portfolio/${assetId}`, {
       method: "DELETE"
     });
+    const duration = Date.now() - start;
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.detail || `Failed to delete asset (Status ${res.status})`);
+      const errMessage = errData.detail || `Failed to delete asset (Status ${res.status})`;
+      logger.network("DELETE", `/api/portfolio/${assetId}`, res.status, duration, { error: errMessage });
+      logger.error("Portfolio", `Failed to delete asset ${assetId}: ${errMessage}`);
+      throw new Error(errMessage);
     }
-    return await res.json();
+    const data = await res.json();
+    logger.network("DELETE", `/api/portfolio/${assetId}`, res.status, duration);
+    logger.success("Portfolio", `Asset ${assetId} deleted from vault.`);
+    return data;
   },
 
   async extractInvoice(file: File): Promise<any> {
@@ -487,7 +664,7 @@ export const api = {
       formData.append("file", file);
       formData.append("user_id", "user_bride");
       
-      const res = await fetch(`${API_BASE}/invoice/extract`, {
+      const res = await apiFetch("/invoice/extract", {
         method: "POST",
         body: formData
       });
@@ -507,7 +684,7 @@ export const api = {
       const formData = new FormData();
       formData.append("file", file);
       
-      const res = await fetch(`${API_BASE}/jewellery/analyze`, {
+      const res = await apiFetch("/jewellery/analyze", {
         method: "POST",
         body: formData
       });
@@ -587,7 +764,7 @@ export const api = {
 
   async checkJewellerySimilarity(targetDesign: any, userId: string = "user_bride"): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE}/jewellery/similarity`, {
+      const res = await apiFetch("/jewellery/similarity", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId, target_design: targetDesign })
@@ -600,16 +777,25 @@ export const api = {
   },
 
   async findSimilarity(file: File, userId: string = "user_bride"): Promise<any> {
+    const start = Date.now();
+    logger.info("SimilarityFinder", `Analyzing uploaded jewelry photo "${file.name}" (${(file.size / 1024).toFixed(1)} KB)...`);
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch(`${API_BASE}/similarity/find?user_id=${userId}`, {
+      const res = await apiFetch(`/similarity/find?user_id=${userId}`, {
         method: "POST",
         body: formData
       });
-      if (!res.ok) throw new Error("Similarity finder request failed");
-      return await res.json();
-    } catch {
+      const duration = Date.now() - start;
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      logger.network("POST", `/api/similarity/find?user_id=${userId}`, res.status, duration);
+      logger.success("SimilarityFinder", `Visual design comparison complete: ${data.data?.detected_item?.category || "Jewellery"} analyzed.`);
+      return data;
+    } catch (err: any) {
+      const duration = Date.now() - start;
+      logger.network("POST", `/api/similarity/find?user_id=${userId}`, "FALLBACK", duration, { error: err.message || err });
+      logger.warn("SimilarityFinder", "Network fallback: utilizing resilient client-side computer vision heuristics.");
       // Offline fallback
       const fn = file.name.toLowerCase();
       const isUnclear = fn.includes("blurry") || fn.includes("unclear") || fn.includes("dark") || fn.includes("bad") || file.size < 2000;
@@ -807,7 +993,7 @@ export const api = {
 
   async getCollectionRecommendations(): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE}/advisor/recommend`);
+      const res = await apiFetch("/advisor/recommend");
       if (!res.ok) throw new Error();
       return await res.json();
     } catch {
@@ -877,7 +1063,7 @@ export const api = {
     target_category?: string;
   }): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE}/purchase/plan`, {
+      const res = await apiFetch("/purchase/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -1044,7 +1230,7 @@ export const api = {
     currentPortfolio?: Asset[]
   ): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE}/ask`, {
+      const res = await apiFetch("/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId, question, home_currency: homeCurrency })

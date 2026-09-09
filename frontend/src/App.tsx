@@ -5,6 +5,8 @@ import { CollectionAdvisor } from "./components/CollectionAdvisor";
 import { PlanPurchase } from "./components/PlanPurchase";
 import { MarketIntelligence } from "./components/MarketIntelligence";
 import { SimilarityFinder } from "./components/SimilarityFinder";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { LiveLogsDrawer } from "./components/LiveLogsDrawer";
 import { Coins, Layout, Plus, Sparkles, TrendingUp, HelpCircle, Gem, Menu, X, ScanSearch } from "lucide-react";
 
 type TabType = "dashboard" | "collection" | "add" | "similarity" | "advisor" | "plan" | "market";
@@ -262,64 +264,67 @@ function App() {
 
       {/* Main page content container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-8 pb-24 md:pb-8">
-        {activeTab === "dashboard" && (
-          <Dashboard 
-            currency={homeCurrency} 
-            onPlanPurchase={handlePlanRecommendation}
-            refreshTrigger={refreshTrigger}
-            onAssetAddedOrDeleted={handleAssetAddedOrDeleted}
-            viewMode="summary"
-          />
-        )}
-        
-        {activeTab === "collection" && (
-          <Dashboard 
-            currency={homeCurrency} 
-            onPlanPurchase={handlePlanRecommendation}
-            refreshTrigger={refreshTrigger}
-            onAssetAddedOrDeleted={handleAssetAddedOrDeleted}
-            viewMode="collection"
-          />
-        )}
-        
-        {activeTab === "add" && (
-          <AddGold 
-            onAssetAdded={handleAssetAddedOrDeleted}
-            onNavigate={(tab: any) => {
-              setActiveTab(tab);
-            }}
-            currency={homeCurrency}
-          />
-        )}
+        <ErrorBoundary key={activeTab}>
+          {activeTab === "dashboard" && (
+            <Dashboard 
+              currency={homeCurrency} 
+              onPlanPurchase={handlePlanRecommendation}
+              refreshTrigger={refreshTrigger}
+              onAssetAddedOrDeleted={handleAssetAddedOrDeleted}
+              viewMode="summary"
+              onNavigateToCollection={() => setActiveTab("collection")}
+            />
+          )}
+          
+          {activeTab === "collection" && (
+            <Dashboard 
+              currency={homeCurrency} 
+              onPlanPurchase={handlePlanRecommendation}
+              refreshTrigger={refreshTrigger}
+              onAssetAddedOrDeleted={handleAssetAddedOrDeleted}
+              viewMode="collection"
+            />
+          )}
+          
+          {activeTab === "add" && (
+            <AddGold 
+              onAssetAdded={handleAssetAddedOrDeleted}
+              onNavigate={(tab: any) => {
+                setActiveTab(tab);
+              }}
+              currency={homeCurrency}
+            />
+          )}
 
-        {activeTab === "similarity" && (
-          <SimilarityFinder 
-            currency={homeCurrency}
-            onPlanPurchase={handlePlanRecommendation}
-          />
-        )}
+          {activeTab === "similarity" && (
+            <SimilarityFinder 
+              currency={homeCurrency}
+              onPlanPurchase={handlePlanRecommendation}
+            />
+          )}
 
-        {activeTab === "advisor" && (
-          <CollectionAdvisor 
-            currency={homeCurrency}
-            onPlanPurchase={handlePlanRecommendation}
-          />
-        )}
+          {activeTab === "advisor" && (
+            <CollectionAdvisor 
+              currency={homeCurrency}
+              onPlanPurchase={handlePlanRecommendation}
+            />
+          )}
 
-        {activeTab === "plan" && (
-          <PlanPurchase 
-            currency={homeCurrency}
-            market={market}
-            preloadedRecommendation={preloadRec}
-            onClearPreload={clearPreload}
-          />
-        )}
+          {activeTab === "plan" && (
+            <PlanPurchase 
+              currency={homeCurrency}
+              market={market}
+              preloadedRecommendation={preloadRec}
+              onClearPreload={clearPreload}
+            />
+          )}
 
-        {activeTab === "market" && (
-          <MarketIntelligence 
-            currency={homeCurrency}
-          />
-        )}
+          {activeTab === "market" && (
+            <MarketIntelligence 
+              currency={homeCurrency}
+            />
+          )}
+        </ErrorBoundary>
       </main>
 
       {/* Footer */}
@@ -400,6 +405,9 @@ function App() {
           <span>Market</span>
         </button>
       </nav>
+
+      {/* Real-Time Telemetry & Diagnostic Logs Drawer */}
+      <LiveLogsDrawer />
     </div>
   );
 }

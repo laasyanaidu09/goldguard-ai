@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -268,6 +268,18 @@ def get_portfolio(user_id: str = "user_bride", currency: str = "USD"):
     Returns the user's gold assets with real-time valuations.
     """
     assets = database.load_user_portfolio(user_id)
+    # Deduplicate strictly by asset_id
+    seen_ids = set()
+    unique_assets = []
+    for a in assets:
+        aid = a.get("asset_id")
+        if aid and aid not in seen_ids:
+            seen_ids.add(aid)
+            unique_assets.append(a)
+        elif not aid:
+            unique_assets.append(a)
+    assets = unique_assets
+    print(f"DEBUG: get_portfolio returned {len(assets)} unique assets: {[a.get('asset_id') for a in assets]}")
     latest_gold_price_usd = database.get_current_gold_price_usd()
     
     total_gross_weight = 0.0
@@ -422,13 +434,14 @@ class ManualAssetPayload(BaseModel):
     notes: Optional[str] = ""
     colour: Optional[str] = "yellow"
     image_reference: Optional[str] = None
+    invoice_reference: Optional[str] = None
 
 @app.post("/api/portfolio")
 def add_manual_asset(payload: ManualAssetPayload):
-    # Purchase Date Future Validation Check
+    # Purchase Date Future Validation Check (with 1-day tolerance for international timezone offsets)
     if payload.purchase_date:
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        if str(payload.purchase_date).strip() > today_str:
+        date_limit = (datetime.now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
+        if str(payload.purchase_date).strip() > date_limit:
             raise HTTPException(
                 status_code=400, 
                 detail="Invalid purchase date: Purchase date cannot be in the future."
@@ -497,11 +510,11 @@ def add_manual_asset(payload: ManualAssetPayload):
         "wastage": 0.0,
         "taxes": 0.0,
         "currency": payload.currency if payload.currency else "USD",
-        "invoice_reference": None,
+        "invoice_reference": payload.invoice_reference or None,
         "image_reference": payload.image_reference,
         "colour": payload.colour,
         "documentation_status": (
-            "verified_invoice" if provenance_status == "INVOICE_VERIFIED"
+            "verified_invoice" if (provenance_status == "INVOICE_VERIFIED" or payload.invoice_reference)
             else ("ai_estimated" if provenance_status == "AI_ESTIMATED" else "self_reported")
         ),
         "data_sources": {
@@ -512,7 +525,7 @@ def add_manual_asset(payload: ManualAssetPayload):
         },
         "purchase_price_status": purchase_price_status,
         "purchase_price_source": purchase_price_source,
-        "provenance_status": provenance_status,
+        "provenance_status": "INVOICE_VERIFIED" if payload.invoice_reference else provenance_status,
         "historical_gold_value": historical_gold_value,
         "estimated_jewellery_value_min": payload.estimated_jewellery_value_min,
         "estimated_jewellery_value_max": payload.estimated_jewellery_value_max,
@@ -635,6 +648,8 @@ def edit_user_asset(payload: EditAssetPayload):
     }
     
     result = database.update_user_asset(payload.user_id, payload.asset_id, updated_fields)
+    if not result:
+        raise HTTPException(status_code=404, detail="Asset not found")
     return result
 
 
@@ -870,6 +885,23 @@ async def upload_asset_image(asset_id: str, file: UploadFile = File(...), user_i
     relative_path = f"/uploads/{asset_id}_{filename}"
     database.update_user_asset(user_id, asset_id, {"image_reference": relative_path})
     return {"status": "success", "image_reference": relative_path}
+
+@app.post("/api/portfolio/{asset_id}/upload-invoice")
+async def upload_asset_invoice(asset_id: str, file: UploadFile = File(...), user_id: str = "user_bride"):
+    import os
+    os.makedirs("static/uploads", exist_ok=True)
+    filename = file.filename.replace(" ", "_")
+    file_path = f"static/uploads/inv_{asset_id}_{filename}"
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+    relative_path = f"/uploads/inv_{asset_id}_{filename}"
+    database.update_user_asset(user_id, asset_id, {
+        "invoice_reference": relative_path,
+        "documentation_status": "verified_invoice",
+        "provenance_status": "INVOICE_VERIFIED"
+    })
+    return {"status": "success", "invoice_reference": relative_path}
 
 # Serve static compiled files and media in production
 if os.path.exists("static"):
